@@ -165,12 +165,11 @@ Output JSON only.
   };
 
   // ⚡ Current Gemini Free Tier models (Oct 2026)
-  // gemini-3.8-flash  — GA, recommended by Google (v1beta confirmed)
-  // gemini-2.5-flash  — Available for existing users, good fallback
-  // Note: gemini-2.0-flash is deprecated (404). gemini-3.1-pro never existed.
+  // Priority: 3.8-flash (latest GA) → 2.5-flash (stable) → 2.5-flash-8b (lightest, lowest load)
   const ALLOWED_MODELS = [
     'gemini-3.8-flash',
     'gemini-2.5-flash',
+    'gemini-2.5-flash-8b', // lightweight, lower server load — best for 503 fallback
   ];
 
   const preferredModel = ALLOWED_MODELS.includes(modelName)
@@ -181,42 +180,79 @@ Output JSON only.
     new Set([preferredModel, ...ALLOWED_MODELS])
   );
 
+  /** Small sleep helper — gives overloaded servers a moment to recover */
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
   let lastError = null;
   let rawText = '';
 
   for (const candidate of candidateModels) {
-    try {
-      const model = genAI.getGenerativeModel({
-        model: candidate,
-        generationConfig: {
-          temperature: 0.3,
-          responseMimeType: 'application/json',
-        },
-        safetySettings: SAFETY_SETTINGS,
-      });
+    // Each model gets 2 attempts with a short pause between them
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: candidate,
+          generationConfig: {
+            temperature: 0.3,
+            responseMimeType: 'application/json',
+          },
+          safetySettings: SAFETY_SETTINGS,
+        });
 
-      const result = await model.generateContent([prompt, imagePart]);
-      const response = await result.response;
-      rawText = response.text();
-      if (rawText) break; // Succeeded!
-    } catch (err) {
-      console.warn(`Model ${candidate} failed (${err.message}). Trying fallback model...`);
-      lastError = err;
-      // Abort only if the API key itself is completely invalid
-      if (
-        err.message.includes('API key not valid') ||
-        err.message.includes('API_KEY_INVALID')
-      ) {
-        throw err;
+        const result = await model.generateContent([prompt, imagePart]);
+        const response = await result.response;
+        rawText = response.text();
+        if (rawText) break; // ✅ success — stop retrying
+      } catch (err) {
+        lastError = err;
+
+        // Hard stop — invalid key cannot be retried
+        if (
+          err.message.includes('API key not valid') ||
+          err.message.includes('API_KEY_INVALID')
+        ) {
+          throw err;
+        }
+
+        const is503 = err.message.includes('503') || err.message.includes('Service Unavailable') || err.message.includes('high demand');
+        const is404 = err.message.includes('404') || err.message.includes('not found');
+
+        if (is404) {
+          // Model doesn't exist — no point retrying, skip to next
+          console.warn(`⚠️ ${candidate} returned 404 — skipping to next model`);
+          break;
+        }
+
+        if (is503 && attempt === 1) {
+          // First 503 on this model → wait 2s then retry same model once
+          console.warn(`⏳ ${candidate} is overloaded (503). Waiting 2s before retry...`);
+          await sleep(2000);
+          continue;
+        }
+
+        // Any other error or 2nd attempt failed → try next model
+        console.warn(`⚠️ ${candidate} attempt ${attempt} failed (${err.message.slice(0, 80)}). Trying next model...`);
+        break;
       }
-      // For any other error (503 high demand, 429 rate limit, 500, 404), seamlessly try the next model
-      continue;
     }
+    if (rawText) break; // outer loop — stop if a model succeeded
   }
 
   if (!rawText) {
+    // All models failed — provide a human-friendly error with retry suggestion
+    const isOverload =
+      lastError?.message?.includes('503') ||
+      lastError?.message?.includes('high demand') ||
+      lastError?.message?.includes('Service Unavailable');
+
+    if (isOverload) {
+      throw new Error(
+        '⚠️ เซิร์ฟเวอร์ Gemini โหลดสูงทุกโมเดล กรุณารอ 30 วินาที แล้วกดแปลใหม่อีกครั้ง'
+      );
+    }
     throw lastError || new Error('ทุกโมเดลของ Gemini ไม่สามารถประมวลผลได้');
   }
+
 
   const data = extractJson(rawText);
 

@@ -287,6 +287,9 @@ export default function SettingsModal({
               <option value="gemini-2.5-flash">
                 Gemini 2.5 Flash (สำรอง - เสถียร โควตาฟรีสูง)
               </option>
+              <option value="gemini-2.5-flash-8b">
+                Gemini 2.5 Flash-8B (เบาภาวะ - โหลดต่ำสุด fallback สุดท้าย)
+              </option>
             </select>
           </div>
 
