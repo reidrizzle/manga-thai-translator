@@ -282,16 +282,16 @@ export default function SettingsModal({
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
             >
               <option value="gemini-2.5-flash">
-                Gemini 2.5 Flash (แนะนำ - เร็วที่สุด โควตาฟรีสูง เหมาะกับมังงะ/มังฮวา)
+                Gemini 2.5 Flash (แนะนำ - เร็ว โควตาฟรีสูง เหมาะกับมังฮวา/มังงะ)
               </option>
-              <option value="gemini-2.0-flash">
-                Gemini 2.0 Flash (โมเดลยอดนิยม แม่นยำสูง)
+              <option value="gemini-3.5-flash">
+                Gemini 3.5 Flash (โมเดลรุ่นใหม่ เร็วและแม่นยำสูง)
               </option>
-              <option value="gemini-1.5-flash-latest">
-                Gemini 1.5 Flash (เวอร์ชันเสถียร)
+              <option value="gemini-3.8-flash">
+                Gemini 3.8 Flash (โมเดลตัวท็อปความเร็วและ OCR)
               </option>
-              <option value="gemini-1.5-pro">
-                Gemini 1.5 Pro (สำหรับหน้าซับซ้อน เล่นคำ บทกวี)
+              <option value="gemini-3.1-pro">
+                Gemini 3.1 Pro (โมเดล Pro สำหรับหน้าซับซ้อน เล่นคำ บทกวี)
               </option>
             </select>
           </div>

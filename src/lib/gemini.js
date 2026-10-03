@@ -165,19 +165,21 @@ Output JSON only.
     },
   };
 
-  // Candidate models prioritized by fast Flash series with highest RPM limits
+  // Candidate models restricted strictly to 2.5 Flash, 3.5 Flash, 3.8 Flash, and 3.1 Pro
+  const ALLOWED_MODELS = [
+    'gemini-2.5-flash',
+    'gemini-3.5-flash',
+    'gemini-3.8-flash',
+    'gemini-3.1-pro',
+  ];
+
+  const preferredModel = ALLOWED_MODELS.includes(modelName)
+    ? modelName
+    : 'gemini-2.5-flash';
+
   const candidateModels = Array.from(
-    new Set([
-      modelName,
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-2.0-flash-exp',
-      'gemini-2.5-pro',
-      'gemini-1.5-pro',
-      'gemini-1.5-flash',
-    ])
-  ).filter(Boolean);
+    new Set([preferredModel, ...ALLOWED_MODELS])
+  );
 
   let lastError = null;
   let rawText = '';

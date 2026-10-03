@@ -23,16 +23,14 @@ export async function POST(request) {
     }
 
     const genAI = new GoogleGenerativeAI(key);
-    const candidates = Array.from(
-      new Set([
-        modelName,
-        'gemini-2.0-flash',
-        'gemini-2.5-flash',
-        'gemini-1.5-flash-latest',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-flash',
-      ])
-    ).filter(Boolean);
+    const ALLOWED = [
+      'gemini-2.5-flash',
+      'gemini-3.5-flash',
+      'gemini-3.8-flash',
+      'gemini-3.1-pro',
+    ];
+    const preferred = ALLOWED.includes(modelName) ? modelName : 'gemini-2.5-flash';
+    const candidates = Array.from(new Set([preferred, ...ALLOWED]));
 
     let lastError = null;
     let success = false;

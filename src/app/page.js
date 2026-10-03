@@ -33,13 +33,25 @@ export default function HomePage() {
   const [activeView, setActiveView] = useState('upload'); // 'upload' | 'reader'
   const [globalError, setGlobalError] = useState('');
 
-  // Load saved API key & preferences from LocalStorage
+  // Load saved API key & preferences from LocalStorage and sanitize model
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedKey = localStorage.getItem('manga_gemini_api_key');
       const savedModel = localStorage.getItem('manga_gemini_model');
       if (savedKey) setApiKey(savedKey);
-      if (savedModel) setModelName(savedModel);
+
+      const ALLOWED_MODELS = [
+        'gemini-2.5-flash',
+        'gemini-3.5-flash',
+        'gemini-3.8-flash',
+        'gemini-3.1-pro',
+      ];
+      if (savedModel && ALLOWED_MODELS.includes(savedModel)) {
+        setModelName(savedModel);
+      } else {
+        setModelName('gemini-2.5-flash');
+        localStorage.setItem('manga_gemini_model', 'gemini-2.5-flash');
+      }
     }
   }, []);
 
