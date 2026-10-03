@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   KeyRound,
@@ -12,6 +12,7 @@ import {
   HelpCircle,
   Sparkles,
   Loader2,
+  Zap,
 } from 'lucide-react';
 
 export default function SettingsModal({
@@ -21,16 +22,28 @@ export default function SettingsModal({
   setApiKey,
   modelName,
   setModelName,
+  globalError,
+  onStartDemoTranslate,
 }) {
   const [localKey, setLocalKey] = useState(apiKey || '');
   const [localModel, setLocalModel] = useState(modelName || 'gemini-1.5-flash');
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [testStatus, setTestStatus] = useState({ state: 'idle', message: '' }); // 'idle' | 'loading' | 'success' | 'error'
+  const [testStatus, setTestStatus] = useState({ state: 'idle', message: '' });
+
+  // Sync local state when modal opens or apiKey prop updates
+  useEffect(() => {
+    if (isOpen) {
+      setLocalKey(apiKey || '');
+      setLocalModel(modelName || 'gemini-1.5-flash');
+      setTestStatus({ state: 'idle', message: '' });
+    }
+  }, [isOpen, apiKey, modelName]);
 
   if (!isOpen) return null;
 
   const handleTestKey = async () => {
-    if (!localKey.trim()) {
+    const keyToTest = localKey.trim();
+    if (!keyToTest) {
       setTestStatus({
         state: 'error',
         message: 'กรุณากรอก API Key ก่อนทำการทดสอบ',
@@ -38,10 +51,10 @@ export default function SettingsModal({
       return;
     }
 
-    if (!localKey.trim().startsWith('AIzaSy')) {
+    if (!keyToTest.startsWith('AIzaSy')) {
       setTestStatus({
         state: 'error',
-        message: `คีย์นี้ขึ้นต้นด้วย "${localKey.substring(0, 5)}..." ไม่ใช่ Google Gemini API Key จริง (คีย์จาก Google AI Studio จะต้องขึ้นต้นด้วย "AIzaSy...")`,
+        message: `คีย์นี้ขึ้นต้นด้วย "${keyToTest.substring(0, 5)}..." ไม่ใช่ Google Gemini API Key (คีย์ที่ถูกต้องจาก Google AI Studio จะต้องขึ้นต้นด้วย "AIzaSy...")`,
       });
       return;
     }
@@ -52,7 +65,7 @@ export default function SettingsModal({
       const res = await fetch('/api/test-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: localKey.trim(), modelName: localModel }),
+        body: JSON.stringify({ apiKey: keyToTest, modelName: localModel }),
       });
       const data = await res.json();
 
@@ -87,7 +100,20 @@ export default function SettingsModal({
     setTimeout(() => {
       setSavedSuccess(false);
       onClose();
-    }, 900);
+    }, 600);
+  };
+
+  const handleUseDemo = () => {
+    setApiKey('demo');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('manga_gemini_api_key', 'demo');
+    }
+    setSavedSuccess(true);
+    setTimeout(() => {
+      setSavedSuccess(false);
+      onClose();
+      if (onStartDemoTranslate) onStartDemoTranslate();
+    }, 400);
   };
 
   const handleClear = () => {
@@ -100,12 +126,12 @@ export default function SettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md transition-all">
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-6 text-slate-100 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-all">
+      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/90 rounded-3xl shadow-2xl p-6 text-slate-100 overflow-hidden">
         {/* Top Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+            <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
               <KeyRound className="w-5 h-5" />
             </div>
             <div>
@@ -125,6 +151,37 @@ export default function SettingsModal({
 
         {/* Form Body */}
         <div className="mt-5 space-y-4 text-sm">
+          {/* Error Notice if opened due to translation failure */}
+          {globalError && (
+            <div className="p-3 rounded-2xl bg-rose-950/70 border border-rose-500/60 text-xs text-rose-200 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-rose-300">สาเหตุที่หน้าต่างนี้เปิดขึ้นมา:</p>
+                <p className="mt-0.5 leading-relaxed">{globalError}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Demo Mode Alternative */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/70 via-purple-950/70 to-pink-950/70 border border-indigo-500/40 flex items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300">
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <span>ยังไม่มี API Key หรือยังไม่พร้อมใส่?</span>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                เปิดโหมดแปลจำลองเพื่อทดลองระบบและอ่านการ์ตูนได้ทันที 100% ฟรี
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleUseDemo}
+              className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition-all hover:scale-105"
+            >
+              เปิดโหมดจำลอง
+            </button>
+          </div>
+
           {/* API Key Input */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -148,7 +205,12 @@ export default function SettingsModal({
                 type="text"
                 value={localKey}
                 onChange={(e) => {
-                  setLocalKey(e.target.value);
+                  const val = e.target.value;
+                  setLocalKey(val);
+                  setApiKey(val.trim());
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('manga_gemini_api_key', val.trim());
+                  }
                   setTestStatus({ state: 'idle', message: '' });
                 }}
                 placeholder="AIzaSy..."

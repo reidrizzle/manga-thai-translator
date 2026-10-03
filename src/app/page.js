@@ -63,8 +63,9 @@ export default function HomePage() {
     setActiveView('reader');
   };
 
-  // Start Batch Translation
-  const handleStartTranslateAll = async () => {
+  // Start Batch Translation (supports real Gemini API key or 'demo' mode)
+  const handleStartTranslateAll = async (overrideKey = null) => {
+    const activeKey = overrideKey || apiKey;
     setGlobalError('');
     setIsTranslating(true);
     let hasTranslatedAtLeastOne = false;
@@ -87,8 +88,9 @@ export default function HomePage() {
             mimeType: currentPage.mimeType || 'image/jpeg',
             sourceLang,
             tonePreset,
-            customApiKey: apiKey || null,
+            customApiKey: activeKey || null,
             modelName,
+            isDemoMode: activeKey === 'demo',
           }),
         });
 
@@ -121,23 +123,23 @@ export default function HomePage() {
           )
         );
 
-        // If API key is missing or invalid, open settings modal automatically
+        setGlobalError(err.message);
+
+        // If error is about API key, open settings modal so user sees the message
         if (
           err.message.includes('API Key') ||
-          err.message.includes('API_KEY_INVALID')
+          err.message.includes('API_KEY_INVALID') ||
+          err.message.includes('ไม่พบ Gemini API Key')
         ) {
-          setGlobalError(err.message);
           setIsSettingsOpen(true);
-          break;
-        } else {
-          setGlobalError(`หน้า ${i + 1} เกิดข้อผิดพลาด: ${err.message}`);
         }
+        break; // Stop translating subsequent pages if there's a fatal key error
       }
     }
 
     setIsTranslating(false);
 
-    // Switch to Reader view once translation finishes
+    // Switch to Reader view if at least one page succeeded
     if (hasTranslatedAtLeastOne) {
       setActiveView('reader');
     }
@@ -160,26 +162,36 @@ export default function HomePage() {
         tonePreset={tonePreset}
         setTonePreset={setTonePreset}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        hasApiKey={Boolean(apiKey)}
+        hasApiKey={Boolean(apiKey) && apiKey !== 'demo'}
         hasPages={pages.length > 0}
         onReset={handleReset}
+        onOpenReader={() => setActiveView('reader')}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 lg:px-8 py-6">
         {/* Global Error Banner if any */}
         {globalError && (
-          <div className="mb-6 flex items-center justify-between p-4 rounded-2xl bg-rose-950/60 border border-rose-800/80 text-rose-200 text-sm shadow-xl">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-rose-400 flex-shrink-0" />
-              <span>{globalError}</span>
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-rose-950/80 border border-rose-500/80 text-rose-200 text-sm shadow-xl">
+            <div className="flex items-start sm:items-center gap-2.5">
+              <ShieldAlert className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5 sm:mt-0" />
+              <span className="leading-relaxed">{globalError}</span>
             </div>
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="px-3 py-1 bg-rose-900/80 hover:bg-rose-800 text-xs font-semibold rounded-lg text-white transition-colors"
-            >
-              เปิดหน้าตั้งค่า
-            </button>
+            <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
+              <button
+                onClick={() => handleStartTranslateAll('demo')}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold rounded-xl text-white transition-colors"
+                title="ทดลองแปลในโหมดจำลองโดยไม่ต้องใช้ API Key"
+              >
+                ⚡ แปลโหมดจำลอง (ไม่ต้องใช้คีย์)
+              </button>
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="px-3 py-1.5 bg-rose-900/90 hover:bg-rose-800 text-xs font-semibold rounded-xl text-white border border-rose-700 transition-colors"
+              >
+                ใส่ API Key ใหม่
+              </button>
+            </div>
           </div>
         )}
 
@@ -206,21 +218,22 @@ export default function HomePage() {
             <UploadZone
               pages={pages}
               setPages={setPages}
-              onStartTranslateAll={handleStartTranslateAll}
+              onStartTranslateAll={() => handleStartTranslateAll()}
+              onOpenReader={() => setActiveView('reader')}
               isTranslating={isTranslating}
               onLoadSample={handleLoadSample}
             />
 
-            {/* Quick Switch to Reader if pages already translated */}
-            {pages.some((p) => p.status === 'done') && (
-              <div className="flex justify-center">
+            {/* Quick Switch to Reader - Always visible when pages are uploaded */}
+            {pages.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setActiveView('reader')}
-                  className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-xl shadow-indigo-600/30 transition-all"
+                  className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-xl shadow-indigo-600/30 transition-all hover:scale-105"
                 >
                   <BookOpen className="w-4 h-4" />
-                  <span>เข้าสู่โหมดอ่านมังฮวา (Reader)</span>
+                  <span>เข้าสู่โหมดอ่านการ์ตูน (เปิดอ่านทันที)</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -234,22 +247,37 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setActiveView('upload')}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 shadow-md transition-all hover:scale-105"
                 >
                   ← กลับไปหน้าอัปโหลด
                 </button>
 
                 <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
-                  <span>โหมด:</span>
+                  <span>โหมดการอ่าน:</span>
                   <span className="font-semibold text-indigo-400">
-                    {readerMode === 'webtoon' ? 'Webtoon Scroll' : 'Manga Page Flip'}
+                    {readerMode === 'webtoon' ? 'Webtoon Scroll (เลื่อนยาว)' : 'Manga Flip (เปิดทีละหน้า)'}
                   </span>
                 </div>
               </div>
 
+              {/* Quick Translate Button from inside the reader */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 hidden sm:inline">
-                  {pages.length} หน้าทั้งหมด
+                <button
+                  type="button"
+                  disabled={isTranslating}
+                  onClick={() => handleStartTranslateAll()}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md ${
+                    isTranslating
+                      ? 'bg-indigo-900 text-indigo-300 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white hover:scale-105'
+                  }`}
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${isTranslating ? 'animate-spin' : ''}`} />
+                  <span>{isTranslating ? 'กำลังแปล...' : 'แปลไทยหน้านี้ด้วย AI'}</span>
+                </button>
+
+                <span className="text-xs text-slate-400 hidden sm:inline ml-1 font-mono">
+                  {pages.length} หน้า
                 </span>
               </div>
             </div>
@@ -297,6 +325,8 @@ export default function HomePage() {
         setApiKey={setApiKey}
         modelName={modelName}
         setModelName={setModelName}
+        globalError={globalError}
+        onStartDemoTranslate={() => handleStartTranslateAll('demo')}
       />
 
       {/* Footer */}

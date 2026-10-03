@@ -9,10 +9,11 @@ import {
   ArrowDown,
   Sparkles,
   Layers,
-  Play,
+  BookOpen,
   AlertCircle,
   HelpCircle,
   Eye,
+  Play,
 } from 'lucide-react';
 import { fileToBase64, formatBytes, uid } from '@/lib/utils';
 
@@ -20,6 +21,7 @@ export default function UploadZone({
   pages,
   setPages,
   onStartTranslateAll,
+  onOpenReader,
   isTranslating,
   onLoadSample,
 }) {
@@ -164,30 +166,44 @@ export default function UploadZone({
       {/* Uploaded Pages List */}
       {pages.length > 0 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
             <div className="flex items-center gap-2">
               <Layers className="w-5 h-5 text-indigo-400" />
               <h3 className="font-bold text-base text-slate-200">
-                รายการหน้าที่เตรียมแปล ({pages.length} หน้า)
+                หน้าที่อัปโหลด ({pages.length} หน้า)
               </h3>
             </div>
 
-            {/* Translate All Action Button */}
-            <button
-              type="button"
-              disabled={isTranslating}
-              onClick={onStartTranslateAll}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm text-white shadow-xl transition-all ${
-                isTranslating
-                  ? 'bg-indigo-700/50 cursor-not-allowed opacity-80'
-                  : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 hover:scale-105 shadow-indigo-600/30'
-              }`}
-            >
-              <Sparkles className={`w-4 h-4 ${isTranslating ? 'animate-spin' : ''}`} />
-              <span>
-                {isTranslating ? 'กำลังแปลด้วย AI...' : 'เริ่มแปลทุกหน้าและเปิดอ่าน'}
-              </span>
-            </button>
+            {/* Action Buttons: Read Now & Translate */}
+            <div className="flex items-center gap-3">
+              {/* Read Now Button (Always available!) */}
+              <button
+                type="button"
+                onClick={onOpenReader}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-slate-100 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-indigo-400 shadow-md transition-all hover:scale-105"
+                title="เข้าสู่หน้าอ่านการ์ตูนทันทีโดยไม่ต้องรอแปล"
+              >
+                <BookOpen className="w-4 h-4 text-indigo-400" />
+                <span>📖 เปิดอ่านทันที</span>
+              </button>
+
+              {/* Translate All Action Button */}
+              <button
+                type="button"
+                disabled={isTranslating}
+                onClick={onStartTranslateAll}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm text-white shadow-xl transition-all ${
+                  isTranslating
+                    ? 'bg-indigo-700/50 cursor-not-allowed opacity-80'
+                    : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 hover:scale-105 shadow-indigo-600/30'
+                }`}
+              >
+                <Sparkles className={`w-4 h-4 ${isTranslating ? 'animate-spin' : ''}`} />
+                <span>
+                  {isTranslating ? 'กำลังแปลด้วย AI...' : '✨ แปลไทยด้วย AI'}
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Grid of Pages */}
@@ -195,7 +211,9 @@ export default function UploadZone({
             {pages.map((page, index) => (
               <div
                 key={page.id}
-                className="group relative flex flex-col bg-slate-900 border border-slate-800 hover:border-indigo-500/60 rounded-2xl overflow-hidden transition-all shadow-md"
+                onClick={() => onOpenReader(index)}
+                className="group relative flex flex-col bg-slate-900 border border-slate-800 hover:border-indigo-500/80 rounded-2xl overflow-hidden transition-all shadow-md cursor-pointer"
+                title="คลิกเพื่อเปิดอ่านหน้านี้"
               >
                 {/* Thumbnail Preview */}
                 <div className="relative aspect-[3/4] bg-slate-950 overflow-hidden">
@@ -210,9 +228,15 @@ export default function UploadZone({
                     #{index + 1}
                   </div>
 
+                  {/* Quick Click to Read Overlay */}
+                  <div className="absolute inset-0 bg-indigo-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white font-semibold text-xs backdrop-blur-[2px]">
+                    <Eye className="w-4 h-4 text-indigo-300" />
+                    <span>คลิกเพื่ออ่าน</span>
+                  </div>
+
                   {/* Status Indicator */}
                   {page.status === 'translating' && (
-                    <div className="absolute inset-0 bg-indigo-950/70 backdrop-blur-sm flex flex-col items-center justify-center gap-2 p-2">
+                    <div className="absolute inset-0 bg-indigo-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 p-2">
                       <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                       <span className="text-[11px] font-semibold text-indigo-200">
                         กำลังแปล...
@@ -221,13 +245,16 @@ export default function UploadZone({
                   )}
 
                   {page.status === 'done' && (
-                    <div className="absolute bottom-2 left-2 right-2 px-2 py-1 rounded bg-emerald-950/80 backdrop-blur-sm border border-emerald-500/40 text-[10px] font-medium text-emerald-300 text-center">
+                    <div className="absolute bottom-2 left-2 right-2 px-2 py-1 rounded bg-emerald-950/90 backdrop-blur-sm border border-emerald-500/40 text-[10px] font-medium text-emerald-300 text-center">
                       ✓ แปลแล้ว ({page.bubbles?.length || 0} จุด)
                     </div>
                   )}
 
                   {/* Actions overlay */}
-                  <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 p-1 rounded-lg backdrop-blur-sm">
+                  <div
+                    className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 p-1 rounded-lg backdrop-blur-sm z-10"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {index > 0 && (
                       <button
                         type="button"
@@ -260,12 +287,12 @@ export default function UploadZone({
                 </div>
 
                 {/* Page Details */}
-                <div className="p-2.5 text-xs bg-slate-900/90 border-t border-slate-800">
-                  <p className="font-medium text-slate-200 truncate" title={page.name}>
+                <div className="p-2.5 text-xs bg-slate-900/90 border-t border-slate-800 flex items-center justify-between">
+                  <p className="font-medium text-slate-200 truncate flex-1" title={page.name}>
                     {page.name}
                   </p>
-                  <p className="text-[10px] text-slate-400">
-                    {page.size ? formatBytes(page.size) : 'ตัวอย่าง'}
+                  <p className="text-[10px] text-slate-400 ml-1">
+                    {page.size ? formatBytes(page.size) : ''}
                   </p>
                 </div>
               </div>

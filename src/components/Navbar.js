@@ -25,6 +25,7 @@ export default function Navbar({
   hasApiKey,
   hasPages,
   onReset,
+  onOpenReader,
 }) {
   return (
     <header className="sticky top-0 z-50 glass-panel border-b border-slate-800/80 px-4 lg:px-8 py-3 transition-all duration-300">
@@ -95,7 +96,10 @@ export default function Navbar({
             <div className="flex items-center bg-slate-900/80 p-1 rounded-xl border border-slate-800">
               <button
                 type="button"
-                onClick={() => setReaderMode('webtoon')}
+                onClick={() => {
+                  setReaderMode('webtoon');
+                  if (onOpenReader) onOpenReader();
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   readerMode === 'webtoon'
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
@@ -109,7 +113,10 @@ export default function Navbar({
 
               <button
                 type="button"
-                onClick={() => setReaderMode('manga')}
+                onClick={() => {
+                  setReaderMode('manga');
+                  if (onOpenReader) onOpenReader();
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   readerMode === 'manga'
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'

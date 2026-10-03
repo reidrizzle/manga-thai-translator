@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { translateMangaImage } from '@/lib/gemini';
 
-// Set max duration for long AI OCR processing if on Vercel/Render (up to 60s)
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +14,7 @@ export async function POST(request) {
       tonePreset,
       customApiKey,
       modelName,
+      isDemoMode,
     } = body;
 
     if (!imageBase64) {
@@ -22,6 +22,34 @@ export async function POST(request) {
         { error: 'กรุณาอัปโหลดรูปภาพมังงะ/มังฮวา' },
         { status: 400 }
       );
+    }
+
+    // Demo Mode: Allow testing even without a Gemini API Key
+    if (isDemoMode || customApiKey === 'demo') {
+      return NextResponse.json({
+        success: true,
+        data: {
+          page_summary: 'ตัวอย่างการแปลโหมดจำลอง (Demo Localization)',
+          bubbles: [
+            {
+              id: 1,
+              type: 'speech',
+              box: { x: 14.0, y: 14.0, width: 44.0, height: 18.0 },
+              original_text: 'It felt a bit excessive, but the operation was essentially a success.',
+              thai_translation: 'ถึงจะดูเกินเบอร์ไปหน่อย แต่ปฏิบัติการครั้งนี้ถือว่าสำเร็จลุล่วงด้วยดีล่ะนะ!',
+              speaker_tone: 'โล่งอก / สบายใจ',
+            },
+            {
+              id: 2,
+              type: 'speech',
+              box: { x: 14.0, y: 72.0, width: 44.0, height: 18.0 },
+              original_text: "If there was a downside, it was that Dame Noel's guard had gone up.",
+              thai_translation: 'แต่ถ้าจะมีจุดเสียอยู่บ้าง... ก็ตรงที่คุณหญิงโนเอลเริ่มระวังตัวแจขึ้นมาเนี่ยสิ!',
+              speaker_tone: 'ครุ่นคิด / เป็นกังวล',
+            },
+          ],
+        },
+      });
     }
 
     const result = await translateMangaImage({
@@ -41,15 +69,9 @@ export async function POST(request) {
     console.error('Translation API Error:', error);
     let errorMessage = error.message || 'เกิดข้อผิดพลาดในการประมวลผลการแปล';
 
-    if (errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('API key not valid')) {
-      errorMessage = 'Gemini API Key ไม่ถูกต้อง กรุณาตรวจสอบ API Key ในหน้าตั้งค่า';
-    } else if (errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('Quota exceeded')) {
-      errorMessage = 'โควต้าการใช้งาน Gemini API เต็มชั่วคราว กรุณารอสักครู่แล้วลองใหม่';
-    }
-
     return NextResponse.json(
       { success: false, error: errorMessage },
-      { status: 500 }
+      { status: 400 }
     );
   }
 }
