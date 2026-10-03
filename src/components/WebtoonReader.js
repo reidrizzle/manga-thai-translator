@@ -5,16 +5,17 @@ import BubbleOverlay from './BubbleOverlay';
 import {
   Eye,
   EyeOff,
-  Sliders,
   Maximize2,
   Minimize2,
   ListOrdered,
   ChevronUp,
   Sparkles,
   BookOpen,
-  ZoomIn,
-  ZoomOut,
   Type,
+  Loader2,
+  Layers,
+  VolumeX,
+  Volume2,
 } from 'lucide-react';
 
 export default function WebtoonReader({
@@ -22,16 +23,22 @@ export default function WebtoonReader({
   onUpdateBubble,
   onToggleScript,
   isScriptOpen,
+  onStartTranslateAll,
+  isTranslating,
+  onTranslateSinglePage,
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
   const [containerWidth, setContainerWidth] = useState(720); // default webtoon width
   const [fontSizeScale, setFontSizeScale] = useState(1);
-  const [fontFamily, setFontFamily] = useState('var(--font-sarabun)');
-  const [bubbleBg, setBubbleBg] = useState('white'); // 'white' | 'dark' | 'transparent'
-  const [showControls, setShowControls] = useState(true);
+  const [renderMode, setRenderMode] = useState('lens'); // 'lens' (แอปแปลภาษา ไม่บังภาพ) | 'patch' (ปิดทับคำเดิม)
+  const [hideSfx, setHideSfx] = useState(true); // Default true: ไม่แสดงเอฟเฟกต์เสียงบังหน้าตัวละคร
   const [scrollProgress, setScrollProgress] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const readerRef = useRef(null);
+
+  const hasAnyTranslation = pages.some(
+    (p) => p.bubbles && p.bubbles.length > 0
+  );
 
   // Track scroll percentage
   useEffect(() => {
@@ -39,7 +46,10 @@ export default function WebtoonReader({
       const el = document.documentElement;
       const totalHeight = el.scrollHeight - el.clientHeight;
       if (totalHeight > 0) {
-        const progress = Math.min(100, Math.max(0, (window.scrollY / totalHeight) * 100));
+        const progress = Math.min(
+          100,
+          Math.max(0, (window.scrollY / totalHeight) * 100)
+        );
         setScrollProgress(Math.round(progress));
       }
     };
@@ -47,7 +57,7 @@ export default function WebtoonReader({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Keyboard shortcut: Hold Space or Press O to peek original
+  // Keyboard shortcut: Press O to peek original
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -61,18 +71,19 @@ export default function WebtoonReader({
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => { });
+      document.documentElement.requestFullscreen().catch(() => {});
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(() => { });
+      document.exitFullscreen().catch(() => {});
       setIsFullscreen(false);
     }
   };
 
   const bubbleStyle = {
-    fontFamily,
+    fontFamily: 'var(--font-prompt)',
     fontSizeScale,
-    bubbleBg,
+    renderMode,
+    hideSfx,
   };
 
   return (
@@ -85,47 +96,127 @@ export default function WebtoonReader({
         />
       </div>
 
-      {/* Floating Reader Toolbar (Sticky at bottom or top) */}
-      <aside aria-label="Reader Controls" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[94%] sm:w-auto glass-panel px-4 py-2.5 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center justify-between sm:justify-center gap-3 backdrop-blur-xl">
-        {/* Toggle Translated vs Original */}
-        <button
-          type="button"
-          onClick={() => setShowOriginal(!showOriginal)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${showOriginal
-              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/30'
-              : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+      {/* Floating Reader Toolbar (Sticky at bottom) */}
+      <aside
+        aria-label="Reader Controls"
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-3xl w-[96%] sm:w-auto glass-panel px-4 py-2.5 rounded-2xl shadow-2xl border border-slate-700/90 flex flex-wrap items-center justify-between sm:justify-center gap-2 backdrop-blur-xl"
+      >
+        {/* If not translated yet: Show "Start AI Translate" Button */}
+        {!hasAnyTranslation ? (
+          <button
+            type="button"
+            onClick={onStartTranslateAll}
+            disabled={isTranslating}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-lg ${
+              isTranslating
+                ? 'bg-indigo-900/80 text-indigo-300 cursor-not-allowed'
+                : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white hover:scale-105 shadow-indigo-600/30 animate-pulse'
             }`}
-          title="กดคีย์ 'O' เพื่อสลับดูภาพต้นฉบับ"
-        >
-          {showOriginal ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-          <span>{showOriginal ? 'ภาพต้นฉบับ' : 'แปลไทย (AI)'}</span>
-        </button>
+          >
+            {isTranslating ? (
+              <Loader2 className="w-4 h-4 animate-spin text-pink-400" />
+            ) : (
+              <Sparkles className="w-4 h-4 text-pink-300" />
+            )}
+            <span>{isTranslating ? 'กำลังแปลด้วย AI...' : '✨ กดเพื่อเริ่มแปลไทย (AI)'}</span>
+          </button>
+        ) : (
+          /* If translated: Show Toggle Translated vs Original */
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowOriginal(!showOriginal)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                showOriginal
+                  ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/30'
+                  : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              }`}
+              title="กดคีย์ 'O' เพื่อสลับดูภาพต้นฉบับ"
+            >
+              {showOriginal ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{showOriginal ? 'ภาพต้นฉบับ' : 'แปลไทย (AI)'}</span>
+            </button>
+
+            {/* Translate Remaining / Re-translate button */}
+            <button
+              type="button"
+              onClick={onStartTranslateAll}
+              disabled={isTranslating}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 transition-all"
+              title="แปลซ้ำ / แปลต่อทุกหน้า"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isTranslating ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">
+                {isTranslating ? 'กำลังแปล...' : 'แปลทุกหน้า'}
+              </span>
+            </button>
+          </div>
+        )}
 
         <div className="h-4 w-px bg-slate-700 hidden sm:block" />
 
+        {/* Style Mode: Lens (เหมือนแอปแปลภาษา ไม่บังภาพ) vs Patch (ลบทับข้อความเดิม) */}
+        <button
+          type="button"
+          onClick={() => setRenderMode(renderMode === 'lens' ? 'patch' : 'lens')}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all"
+          title="สลับสไตล์การแสดงผลคำแปล"
+        >
+          <Layers className="w-3.5 h-3.5 text-cyan-400" />
+          <span>{renderMode === 'lens' ? 'สไตล์แอปแปล (Lens)' : 'สไตล์ปิดทับ (Patch)'}</span>
+        </button>
+
+        {/* Hide SFX Toggle (ซ่อนเสียงประกอบไม่ให้บังหน้า) */}
+        <button
+          type="button"
+          onClick={() => setHideSfx(!hideSfx)}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+            hideSfx
+              ? 'bg-slate-800 text-slate-200 border-slate-700'
+              : 'bg-amber-950/60 text-amber-300 border-amber-600/50'
+          }`}
+          title="เปิด/ปิดการแสดงเสียงประกอบ (SFX)"
+        >
+          {hideSfx ? (
+            <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+          ) : (
+            <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+          )}
+          <span className="hidden sm:inline">{hideSfx ? 'ซ่อน SFX' : 'แสดง SFX'}</span>
+        </button>
+
         {/* Width adjustment buttons */}
-        <div className="hidden sm:flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800 text-xs">
+        <div className="hidden md:flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800 text-xs">
           <button
             type="button"
             onClick={() => setContainerWidth(600)}
-            className={`px-2 py-1 rounded-lg ${containerWidth === 600 ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-              }`}
+            className={`px-2 py-1 rounded-lg ${
+              containerWidth === 600
+                ? 'bg-indigo-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
           >
             แคบ
           </button>
           <button
             type="button"
             onClick={() => setContainerWidth(720)}
-            className={`px-2 py-1 rounded-lg ${containerWidth === 720 ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-              }`}
+            className={`px-2 py-1 rounded-lg ${
+              containerWidth === 720
+                ? 'bg-indigo-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
           >
             ปกติ
           </button>
           <button
             type="button"
             onClick={() => setContainerWidth(900)}
-            className={`px-2 py-1 rounded-lg ${containerWidth === 900 ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-              }`}
+            className={`px-2 py-1 rounded-lg ${
+              containerWidth === 900
+                ? 'bg-indigo-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
           >
             กว้าง
           </button>
@@ -142,7 +233,9 @@ export default function WebtoonReader({
           >
             -
           </button>
-          <span className="text-[11px] font-mono">{Math.round(fontSizeScale * 100)}%</span>
+          <span className="text-[11px] font-mono">
+            {Math.round(fontSizeScale * 100)}%
+          </span>
           <button
             type="button"
             onClick={() => setFontSizeScale((s) => Math.min(1.5, s + 0.1))}
@@ -157,10 +250,11 @@ export default function WebtoonReader({
         <button
           type="button"
           onClick={onToggleScript}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${isScriptOpen
+          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+            isScriptOpen
               ? 'bg-pink-600 text-white border-pink-500 shadow-md shadow-pink-600/30'
               : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
-            }`}
+          }`}
           title="เปิด/ปิด แผงสคริปต์บทแปล"
         >
           <ListOrdered className="w-3.5 h-3.5" />
@@ -176,11 +270,6 @@ export default function WebtoonReader({
         >
           {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
-
-        {/* Scroll percentage */}
-        <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
-          {scrollProgress}%
-        </span>
       </aside>
 
       {/* Pages Vertical Strip */}
@@ -192,7 +281,7 @@ export default function WebtoonReader({
           <div
             key={page.id}
             id={`webtoon-page-${pageIndex}`}
-            className="relative w-full select-none bg-slate-950 shadow-2xl transition-all"
+            className="group relative w-full select-none bg-slate-950 shadow-2xl transition-all"
           >
             {/* Page Image */}
             <img
@@ -215,6 +304,21 @@ export default function WebtoonReader({
                   }
                 />
               ))}
+
+            {/* Quick Button to translate this specific page if not translated */}
+            {(!page.bubbles || page.bubbles.length === 0) && onTranslateSinglePage && (
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                <button
+                  type="button"
+                  onClick={() => onTranslateSinglePage(pageIndex)}
+                  disabled={isTranslating}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-bold shadow-xl backdrop-blur-sm transition-all hover:scale-105"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-pink-300" />
+                  <span>แปลหน้านี้ (#{pageIndex + 1})</span>
+                </button>
+              </div>
+            )}
 
             {/* Page number floating watermark */}
             <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-sm text-[10px] text-slate-400 pointer-events-none font-mono">

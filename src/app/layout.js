@@ -1,9 +1,9 @@
-import { Kanit, Sarabun } from 'next/font/google';
+import { Kanit, Sarabun, Prompt, Mitr } from 'next/font/google';
 import './globals.css';
 
 const kanit = Kanit({
   subsets: ['latin', 'thai'],
-  weight: ['300', '400', '500', '600', '700'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-kanit',
   display: 'swap',
 });
@@ -12,6 +12,20 @@ const sarabun = Sarabun({
   subsets: ['latin', 'thai'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-sarabun',
+  display: 'swap',
+});
+
+const prompt = Prompt({
+  subsets: ['latin', 'thai'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-prompt',
+  display: 'swap',
+});
+
+const mitr = Mitr({
+  subsets: ['latin', 'thai'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-mitr',
   display: 'swap',
 });
 
@@ -32,7 +46,10 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="th" className={`${kanit.variable} ${sarabun.variable} dark`}>
+    <html
+      lang="th"
+      className={`${kanit.variable} ${sarabun.variable} ${prompt.variable} ${mitr.variable} dark`}
+    >
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="icon" href="/favicon.ico" sizes="any" />

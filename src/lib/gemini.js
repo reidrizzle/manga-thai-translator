@@ -14,10 +14,10 @@ Your highest priority is to produce NATURAL, VIBRANT, and EMOTIVE Thai translati
 Rules for Thai Localization:
 1. Avoid literal word-for-word translation. Translate the INTENT and FEELING.
 2. Use authentic Thai comic dialog particles appropriately (เช่น "วะ", "โว้ย", "สิ", "น่า", "หืม?", "เอ๊ะ!", "บ้าเอ๊ย!", "ชิ!") matching the character's personality and status.
-3. For SFX (Sound Effects), translate into standard Thai comic sound words (เช่น "ตึง!", "ควับ!", "ตึกตัก...", "ฟุ่บ!", "เคร้ง!").
-4. For honorifics and pronouns: choose appropriate Thai pronouns (เช่น ฉัน/นาย, ข้า/เจ้า, พี่/น้อง, ผม/คุณ, กู/มึง หากเป็นเพื่อนสนิทหรือคนสนิทที่สบถ).
+3. CRITICAL RULE FOR SOUND EFFECTS (SFX): DO NOT detect or extract ambient background sound effects (SFX) that are drawn across characters, faces, or artwork! ONLY extract text inside actual speech bubbles (บอลลูนคำพูด), thought bubbles, and rectangular narration boxes.
+4. Bounding box coordinates must be TIGHT and snug around the dialogue, never oversized.
 
-You must detect all text areas (speech bubbles, thought bubbles, narration boxes, SFX) in the manga page.
+You must detect dialogue text areas (speech bubbles, thought bubbles, narration boxes).
 For each text area, identify its bounding box coordinates in percentage (0 to 100) relative to image width and height:
 - x: left edge percentage (0 to 100)
 - y: top edge percentage (0 to 100)

@@ -22,8 +22,9 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['var(--font-kanit)', 'var(--font-sarabun)', 'system-ui', 'sans-serif'],
-        manga: ['var(--font-kanit)', 'sans-serif'],
+        sans: ['var(--font-prompt)', 'var(--font-kanit)', 'var(--font-sarabun)', 'system-ui', 'sans-serif'],
+        comic: ['var(--font-prompt)', 'var(--font-mitr)', 'sans-serif'],
+        manga: ['var(--font-prompt)', 'sans-serif'],
         thai: ['var(--font-sarabun)', 'sans-serif'],
       },
     },

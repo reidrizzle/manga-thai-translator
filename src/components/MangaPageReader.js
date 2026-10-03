@@ -74,10 +74,14 @@ export default function MangaPageReader({
     }
   };
 
+  const [renderMode, setRenderMode] = useState('lens');
+  const [hideSfx, setHideSfx] = useState(true);
+
   const bubbleStyle = {
-    fontFamily,
+    fontFamily: 'var(--font-prompt)',
     fontSizeScale,
-    bubbleBg: 'white',
+    renderMode,
+    hideSfx,
   };
 
   if (!currentPage) return null;
