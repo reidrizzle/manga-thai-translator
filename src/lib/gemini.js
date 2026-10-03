@@ -46,14 +46,12 @@ Return your response strictly in valid JSON matching this schema:
  */
 const extractJson = (text) => {
   try {
-    // If text is wrapped in ```json ... ```
     const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (jsonMatch && jsonMatch[1]) {
       return JSON.parse(jsonMatch[1]);
     }
     return JSON.parse(text);
   } catch (err) {
-    // Fallback regex to find opening { and closing }
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace !== -1) {
@@ -65,7 +63,7 @@ const extractJson = (text) => {
 };
 
 /**
- * Translate a manga image using Google Gemini Vision
+ * Translate a manga image using Google Gemini Vision with automatic model fallback
  */
 export async function translateMangaImage({
   imageBase64,
@@ -73,7 +71,7 @@ export async function translateMangaImage({
   sourceLang = 'auto',
   tonePreset = 'manhwa_natural',
   customApiKey = null,
-  modelName = 'gemini-1.5-flash',
+  modelName = 'gemini-2.0-flash',
 }) {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
 
@@ -94,22 +92,11 @@ export async function translateMangaImage({
   if (imageBase64.includes('base64,')) {
     const parts = imageBase64.split('base64,');
     cleanBase64 = parts[1];
-    // extract mime type if available
     const match = imageBase64.match(/data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+).*,.*/);
     if (match && match[1]) {
       mimeType = match[1];
     }
   }
-
-  // Choose model (default to gemini-1.5-flash or gemini-2.5-flash)
-  const targetModel = modelName.includes('gemini') ? modelName : 'gemini-1.5-flash';
-  const model = genAI.getGenerativeModel({
-    model: targetModel,
-    generationConfig: {
-      temperature: 0.3,
-      responseMimeType: "application/json",
-    },
-  });
 
   const langInstruction =
     sourceLang === 'auto'
@@ -135,10 +122,110 @@ Output JSON only.
     },
   };
 
-  const result = await model.generateContent([prompt, imagePart]);
-  const response = await result.response;
-  const rawText = response.text();
+  // Candidate models to try in order of preference (handles 404 deprecated models automatically)
+  const candidateModels = Array.from(
+    new Set([
+      modelName,
+      'gemini-2.0-flash',
+      'gemini-2.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-2.0-flash-exp',
+      'gemini-1.5-pro',
+      'gemini-1.5-flash',
+    ])
+  ).filter(Boolean);
+
+  let lastError = null;
+  let rawText = '';
+
+  for (const candidate of candidateModels) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: candidate,
+        generationConfig: {
+          temperature: 0.3,
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const result = await model.generateContent([prompt, imagePart]);
+      const response = await result.response;
+      rawText = response.text();
+      if (rawText) break; // Succeeded!
+    } catch (err) {
+      console.warn(`Model ${candidate} failed:`, err.message);
+      lastError = err;
+      // If 404 Not Found or not supported, try the next model
+      if (
+        err.message.includes('404') ||
+        err.message.includes('not found') ||
+        err.message.includes('not supported')
+      ) {
+        continue;
+      } else {
+        // If it's a critical error like quota or invalid key, throw immediately
+        throw err;
+      }
+    }
+  }
+
+  if (!rawText) {
+    throw lastError || new Error('ทุกโมเดลของ Gemini ไม่สามารถประมวลผลได้');
+  }
 
   const data = extractJson(rawText);
-  return data;
+
+  // Normalize bubbles structure
+  let rawBubbles = [];
+  if (Array.isArray(data)) {
+    rawBubbles = data;
+  } else if (Array.isArray(data.bubbles)) {
+    rawBubbles = data.bubbles;
+  } else if (Array.isArray(data.dialogue)) {
+    rawBubbles = data.dialogue;
+  } else if (Array.isArray(data.translations)) {
+    rawBubbles = data.translations;
+  } else if (Array.isArray(data.boxes)) {
+    rawBubbles = data.boxes;
+  }
+
+  const normalizedBubbles = rawBubbles.map((b, idx) => {
+    let box = b.box || {};
+    if (b.box_2d && Array.isArray(b.box_2d)) {
+      const scale = b.box_2d.some((v) => v > 100) ? 10 : 1;
+      const [ymin, xmin, ymax, xmax] = b.box_2d.map((v) => v / scale);
+      box = {
+        x: xmin,
+        y: ymin,
+        width: Math.max(5, xmax - xmin),
+        height: Math.max(3, ymax - ymin),
+      };
+    } else if (b.x !== undefined && b.y !== undefined) {
+      box = {
+        x: Number(b.x),
+        y: Number(b.y),
+        width: Number(b.width || b.w || 30),
+        height: Number(b.height || b.h || 12),
+      };
+    }
+
+    return {
+      id: b.id || idx + 1,
+      type: b.type || 'speech',
+      box: {
+        x: Math.max(0, Math.min(95, Number(box.x) || 15)),
+        y: Math.max(0, Math.min(95, Number(box.y) || 15)),
+        width: Math.max(5, Math.min(90, Number(box.width) || 30)),
+        height: Math.max(3, Math.min(60, Number(box.height) || 12)),
+      },
+      original_text: b.original_text || b.text || b.original || '',
+      thai_translation: b.thai_translation || b.translation || b.thai || '',
+      speaker_tone: b.speaker_tone || b.tone || '',
+    };
+  });
+
+  return {
+    page_summary: data.page_summary || '',
+    bubbles: normalizedBubbles,
+  };
 }

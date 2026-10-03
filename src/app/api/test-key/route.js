@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
-    const { apiKey, modelName = 'gemini-1.5-flash' } = await request.json();
+    const { apiKey, modelName = 'gemini-2.0-flash' } = await request.json();
     const key = apiKey || process.env.GEMINI_API_KEY;
 
     if (!key) {
@@ -23,12 +23,41 @@ export async function POST(request) {
     }
 
     const genAI = new GoogleGenerativeAI(key);
-    const targetModel = modelName.includes('gemini') ? modelName : 'gemini-1.5-flash';
-    const model = genAI.getGenerativeModel({ model: targetModel });
+    const candidates = Array.from(
+      new Set([
+        modelName,
+        'gemini-2.0-flash',
+        'gemini-2.5-flash',
+        'gemini-1.5-flash-latest',
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-flash',
+      ])
+    ).filter(Boolean);
 
-    const result = await model.generateContent('ping');
-    const response = await result.response;
-    const text = response.text();
+    let lastError = null;
+    let success = false;
+
+    for (const cand of candidates) {
+      try {
+        const model = genAI.getGenerativeModel({ model: cand });
+        const result = await model.generateContent('ping');
+        const response = await result.response;
+        if (response.text()) {
+          success = true;
+          break;
+        }
+      } catch (err) {
+        lastError = err;
+        if (err.message.includes('404') || err.message.includes('not found')) {
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    if (!success) {
+      throw lastError || new Error('ไม่พบโมเดล Gemini ที่รองรับ');
+    }
 
     return NextResponse.json({
       success: true,

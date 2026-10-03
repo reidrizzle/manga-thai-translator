@@ -61,10 +61,10 @@ export default function WebtoonReader({
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => { });
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
       setIsFullscreen(false);
     }
   };
@@ -91,11 +91,10 @@ export default function WebtoonReader({
         <button
           type="button"
           onClick={() => setShowOriginal(!showOriginal)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-            showOriginal
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${showOriginal
               ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/30'
               : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-          }`}
+            }`}
           title="กดคีย์ 'O' เพื่อสลับดูภาพต้นฉบับ"
         >
           {showOriginal ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -109,27 +108,24 @@ export default function WebtoonReader({
           <button
             type="button"
             onClick={() => setContainerWidth(600)}
-            className={`px-2 py-1 rounded-lg ${
-              containerWidth === 600 ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
+            className={`px-2 py-1 rounded-lg ${containerWidth === 600 ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
           >
             แคบ
           </button>
           <button
             type="button"
             onClick={() => setContainerWidth(720)}
-            className={`px-2 py-1 rounded-lg ${
-              containerWidth === 720 ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
+            className={`px-2 py-1 rounded-lg ${containerWidth === 720 ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
           >
             ปกติ
           </button>
           <button
             type="button"
             onClick={() => setContainerWidth(900)}
-            className={`px-2 py-1 rounded-lg ${
-              containerWidth === 900 ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
+            className={`px-2 py-1 rounded-lg ${containerWidth === 900 ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
           >
             กว้าง
           </button>
@@ -161,11 +157,10 @@ export default function WebtoonReader({
         <button
           type="button"
           onClick={onToggleScript}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
-            isScriptOpen
+          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${isScriptOpen
               ? 'bg-pink-600 text-white border-pink-500 shadow-md shadow-pink-600/30'
               : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
-          }`}
+            }`}
           title="เปิด/ปิด แผงสคริปต์บทแปล"
         >
           <ListOrdered className="w-3.5 h-3.5" />

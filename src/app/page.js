@@ -25,7 +25,7 @@ export default function HomePage() {
   const [sourceLang, setSourceLang] = useState('auto');
   const [tonePreset, setTonePreset] = useState('manhwa_natural');
   const [apiKey, setApiKey] = useState('');
-  const [modelName, setModelName] = useState('gemini-1.5-flash');
+  const [modelName, setModelName] = useState('gemini-2.0-flash');
   const [isTranslating, setIsTranslating] = useState(false);
   const [currentTranslateIndex, setCurrentTranslateIndex] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -61,6 +61,63 @@ export default function HomePage() {
     const sample = getSamplePages();
     setPages(sample);
     setActiveView('reader');
+  };
+
+  // Translate a single page
+  const handleTranslateSinglePage = async (pageIndex) => {
+    if (pageIndex < 0 || pageIndex >= pages.length) return;
+    setGlobalError('');
+    setIsTranslating(true);
+    setCurrentTranslateIndex(pageIndex);
+
+    setPages((prev) =>
+      prev.map((p, idx) => (idx === pageIndex ? { ...p, status: 'translating' } : p))
+    );
+
+    try {
+      const currentPage = pages[pageIndex];
+      const response = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: currentPage.base64,
+          mimeType: currentPage.mimeType || 'image/jpeg',
+          sourceLang,
+          tonePreset,
+          customApiKey: apiKey || null,
+          modelName,
+          isDemoMode: apiKey === 'demo',
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'การแปลล้มเหลว');
+      }
+
+      setPages((prev) =>
+        prev.map((p, idx) =>
+          idx === pageIndex
+            ? {
+                ...p,
+                status: 'done',
+                bubbles: data.data.bubbles || [],
+                page_summary: data.data.page_summary || '',
+              }
+            : p
+        )
+      );
+    } catch (err) {
+      console.error(`Page ${pageIndex + 1} translation failed:`, err);
+      setGlobalError(err.message);
+      setPages((prev) =>
+        prev.map((p, idx) =>
+          idx === pageIndex ? { ...p, status: 'error', error: err.message } : p
+        )
+      );
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
   // Start Batch Translation (supports real Gemini API key or 'demo' mode)
@@ -273,7 +330,7 @@ export default function HomePage() {
                   }`}
                 >
                   <Sparkles className={`w-3.5 h-3.5 ${isTranslating ? 'animate-spin' : ''}`} />
-                  <span>{isTranslating ? 'กำลังแปล...' : 'แปลไทยหน้านี้ด้วย AI'}</span>
+                  <span>{isTranslating ? 'กำลังแปล...' : 'แปลทุกหน้าด้วย AI'}</span>
                 </button>
 
                 <span className="text-xs text-slate-400 hidden sm:inline ml-1 font-mono">
@@ -289,6 +346,9 @@ export default function HomePage() {
                 onUpdateBubble={handleUpdateBubble}
                 onToggleScript={() => setIsScriptOpen(!isScriptOpen)}
                 isScriptOpen={isScriptOpen}
+                onStartTranslateAll={() => handleStartTranslateAll()}
+                isTranslating={isTranslating}
+                onTranslateSinglePage={handleTranslateSinglePage}
               />
             ) : (
               <MangaPageReader
@@ -296,6 +356,9 @@ export default function HomePage() {
                 onUpdateBubble={handleUpdateBubble}
                 onToggleScript={() => setIsScriptOpen(!isScriptOpen)}
                 isScriptOpen={isScriptOpen}
+                onStartTranslateAll={() => handleStartTranslateAll()}
+                isTranslating={isTranslating}
+                onTranslateSinglePage={handleTranslateSinglePage}
               />
             )}
           </div>
