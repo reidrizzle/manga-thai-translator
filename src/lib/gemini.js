@@ -83,6 +83,13 @@ export async function translateMangaImage({
     );
   }
 
+  // Helpful validation for Google Gemini API key format
+  if (!apiKey.startsWith('AIzaSy')) {
+    throw new Error(
+      `API Key ไม่ถูกต้อง: คุณใส่คีย์ที่ขึ้นต้นด้วย "${apiKey.substring(0, 5)}..." ซึ่งไม่ใช่ Google Gemini API Key (คีย์ที่ถูกต้องจาก Google AI Studio จะต้องขึ้นต้นด้วย "AIzaSy...") กรุณาขอรับคีย์ฟรีที่ https://aistudio.google.com/app/apikey`
+    );
+  }
+
   const genAI = new GoogleGenerativeAI(apiKey);
 
   // Extract pure base64 data if data URL is provided
