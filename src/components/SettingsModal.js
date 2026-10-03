@@ -51,10 +51,10 @@ export default function SettingsModal({
       return;
     }
 
-    if (!keyToTest.startsWith('AIzaSy')) {
+    if (keyToTest.length < 10) {
       setTestStatus({
         state: 'error',
-        message: `คีย์นี้ขึ้นต้นด้วย "${keyToTest.substring(0, 5)}..." ไม่ใช่ Google Gemini API Key (คีย์ที่ถูกต้องจาก Google AI Studio จะต้องขึ้นต้นด้วย "AIzaSy...")`,
+        message: 'คีย์สั้นเกินไป กรุณาระบุ Google Gemini API Key ให้ครบถ้วน',
       });
       return;
     }
@@ -213,7 +213,7 @@ export default function SettingsModal({
                   }
                   setTestStatus({ state: 'idle', message: '' });
                 }}
-                placeholder="AIzaSy..."
+                placeholder="วาง Gemini API Key ที่นี่ (ขึ้นต้นด้วย AQ... หรือ AIzaSy...)"
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-mono"
               />
               {localKey && (
@@ -227,10 +227,10 @@ export default function SettingsModal({
               )}
             </div>
 
-            {/* Hint about AIzaSy format */}
+            {/* Hint about format */}
             <div className="mt-1.5 flex items-center justify-between text-xs">
               <span className="text-slate-400 text-[11px]">
-                💡 คีย์ของแท้จะขึ้นต้นด้วย <code className="text-emerald-400 font-mono">AIzaSy...</code> (39 ตัวอักษร)
+                💡 นำ API Key จาก Google AI Studio มาวางได้เลยครับ (เช่น <code className="text-emerald-400 font-mono">AQ...</code> หรือ <code className="text-emerald-400 font-mono">AIzaSy...</code>)
               </span>
               <button
                 type="button"

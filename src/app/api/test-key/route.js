@@ -15,12 +15,9 @@ export async function POST(request) {
       );
     }
 
-    if (!key.startsWith('AIzaSy')) {
+    if (key.length < 10) {
       return NextResponse.json(
-        {
-          success: false,
-          error: `คีย์นี้ขึ้นต้นด้วย "${key.substring(0, 5)}..." ซึ่งไม่ใช่รูปแบบของ Google Gemini API Key (คีย์ที่ถูกต้องจาก Google AI Studio จะต้องขึ้นต้นด้วย "AIzaSy...")`,
-        },
+        { success: false, error: 'คีย์สั้นเกินไป กรุณาระบุ Gemini API Key ให้ครบถ้วน' },
         { status: 400 }
       );
     }
