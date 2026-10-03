@@ -25,7 +25,7 @@ export default function HomePage() {
   const [sourceLang, setSourceLang] = useState('auto');
   const [tonePreset, setTonePreset] = useState('manhwa_natural');
   const [apiKey, setApiKey] = useState('');
-  const [modelName, setModelName] = useState('gemini-2.0-flash');
+  const [modelName, setModelName] = useState('gemini-2.5-flash');
   const [isTranslating, setIsTranslating] = useState(false);
   const [currentTranslateIndex, setCurrentTranslateIndex] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -130,6 +130,11 @@ export default function HomePage() {
     for (let i = 0; i < pages.length; i++) {
       setCurrentTranslateIndex(i);
       const currentPage = pages[i];
+
+      // Delay 2 seconds between pages to respect Free Tier Rate Limits (15 RPM)
+      if (i > 0 && activeKey !== 'demo') {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
 
       // Mark current page as translating
       setPages((prev) =>

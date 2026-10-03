@@ -1,4 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+} from '@google/generative-ai';
 
 /**
  * System prompt crafted specifically for professional, natural Thai Manga/Manhwa translation
@@ -42,6 +46,28 @@ Return your response strictly in valid JSON matching this schema:
 `;
 
 /**
+ * Permissive safety settings for comic action, combat, and fantasy drama
+ */
+const SAFETY_SETTINGS = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+];
+
+/**
  * Clean and extract JSON from model output
  */
 const extractJson = (text) => {
@@ -63,7 +89,8 @@ const extractJson = (text) => {
 };
 
 /**
- * Translate a manga image using Google Gemini Vision with automatic model fallback
+ * Translate a manga image using Google Gemini Vision with automatic model fallback,
+ * directional reading rules (Manga Right-to-Left vs Manhwa Left-to-Right), and relaxed safety filters.
  */
 export async function translateMangaImage({
   imageBase64,
@@ -71,7 +98,7 @@ export async function translateMangaImage({
   sourceLang = 'auto',
   tonePreset = 'manhwa_natural',
   customApiKey = null,
-  modelName = 'gemini-2.0-flash',
+  modelName = 'gemini-2.5-flash',
 }) {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
 
@@ -98,18 +125,34 @@ export async function translateMangaImage({
     }
   }
 
-  const langInstruction =
-    sourceLang === 'auto'
-      ? 'Auto-detect source language (Korean Manhwa, Japanese Manga, English Comic, or Chinese Manhua).'
-      : `The source language is strictly ${sourceLang}.`;
+  // Directional Reading Flow Rule
+  let readingFlow = 'Read from Left-to-Right and Top-to-Bottom.';
+  let langInstruction = 'Auto-detect source language.';
+
+  if (sourceLang === 'Japanese') {
+    readingFlow =
+      'CRITICAL MANGA ORDER: Read text strictly from RIGHT-TO-LEFT and TOP-TO-BOTTOM (Traditional Japanese Manga reading flow). Order bubble IDs accordingly.';
+    langInstruction = 'The source language is Japanese Manga.';
+  } else if (sourceLang === 'Korean') {
+    readingFlow =
+      'CRITICAL MANHWA ORDER: Read text strictly from LEFT-TO-RIGHT and TOP-TO-BOTTOM (Korean Webtoon vertical strip flow). Order bubble IDs accordingly.';
+    langInstruction = 'The source language is Korean Manhwa/Webtoon.';
+  } else if (sourceLang === 'English') {
+    readingFlow = 'Read text from LEFT-TO-RIGHT and TOP-TO-BOTTOM (Western Comic flow).';
+    langInstruction = 'The source language is English Comic.';
+  } else if (sourceLang === 'Chinese') {
+    readingFlow = 'Read text from LEFT-TO-RIGHT and TOP-TO-BOTTOM (Chinese Manhua flow).';
+    langInstruction = 'The source language is Chinese Manhua.';
+  }
 
   const prompt = `
 ${SYSTEM_PROMPT}
 
 Language Instruction: ${langInstruction}
+Reading Flow Direction: ${readingFlow}
 Tone Mode: ${tonePreset}
 
-Now, carefully inspect this manga/manhwa page image. Locate every speech bubble, text box, narration, and sound effect from top to bottom (reading flow).
+Now, carefully inspect this manga/manhwa page image. Locate every speech bubble, text box, narration, and sound effect following the specific reading flow direction.
 Translate every bubble into natural, colloquial Thai that sounds like authentic Thai comic publications.
 Calculate the exact percentage coordinates of each bubble accurately.
 Output JSON only.
@@ -122,14 +165,15 @@ Output JSON only.
     },
   };
 
-  // Candidate models to try in order of preference (handles 404 deprecated models automatically)
+  // Candidate models prioritized by fast Flash series with highest RPM limits
   const candidateModels = Array.from(
     new Set([
       modelName,
-      'gemini-2.0-flash',
       'gemini-2.5-flash',
+      'gemini-2.0-flash',
       'gemini-1.5-flash-latest',
       'gemini-2.0-flash-exp',
+      'gemini-2.5-pro',
       'gemini-1.5-pro',
       'gemini-1.5-flash',
     ])
@@ -146,6 +190,7 @@ Output JSON only.
           temperature: 0.3,
           responseMimeType: 'application/json',
         },
+        safetySettings: SAFETY_SETTINGS,
       });
 
       const result = await model.generateContent([prompt, imagePart]);
@@ -155,7 +200,6 @@ Output JSON only.
     } catch (err) {
       console.warn(`Model ${candidate} failed:`, err.message);
       lastError = err;
-      // If 404 Not Found or not supported, try the next model
       if (
         err.message.includes('404') ||
         err.message.includes('not found') ||
@@ -163,7 +207,6 @@ Output JSON only.
       ) {
         continue;
       } else {
-        // If it's a critical error like quota or invalid key, throw immediately
         throw err;
       }
     }
