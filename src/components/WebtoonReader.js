@@ -21,6 +21,7 @@ import {
 export default function WebtoonReader({
   pages,
   onUpdateBubble,
+  onUpdateBubbleBox,
   onToggleScript,
   isScriptOpen,
   onStartTranslateAll,
@@ -327,6 +328,9 @@ export default function WebtoonReader({
                   bubbleStyle={bubbleStyle}
                   onUpdateBubbleText={(bubbleId, newText) =>
                     onUpdateBubble(page.id, bubbleId, newText)
+                  }
+                  onUpdateBubbleBox={(bubbleId, newBox) =>
+                    onUpdateBubbleBox && onUpdateBubbleBox(page.id, bubbleId, newBox)
                   }
                 />
               ))}

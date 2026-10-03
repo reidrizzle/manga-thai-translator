@@ -20,6 +20,7 @@ import {
 export default function MangaPageReader({
   pages,
   onUpdateBubble,
+  onUpdateBubbleBox,
   onToggleScript,
   isScriptOpen,
 }) {
@@ -242,6 +243,9 @@ export default function MangaPageReader({
                 bubbleStyle={bubbleStyle}
                 onUpdateBubbleText={(bubbleId, newText) =>
                   onUpdateBubble(currentPage.id, bubbleId, newText)
+                }
+                onUpdateBubbleBox={(bubbleId, newBox) =>
+                  onUpdateBubbleBox && onUpdateBubbleBox(currentPage.id, bubbleId, newBox)
                 }
               />
             ))}

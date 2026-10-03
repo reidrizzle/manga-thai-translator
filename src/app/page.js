@@ -67,6 +67,19 @@ export default function HomePage() {
     );
   };
 
+  // Update a single bubble's position box in state (drag-to-reposition)
+  const handleUpdateBubbleBox = (pageId, bubbleId, newBox) => {
+    setPages((prevPages) =>
+      prevPages.map((page) => {
+        if (page.id !== pageId) return page;
+        const updatedBubbles = page.bubbles.map((b) =>
+          b.id === bubbleId ? { ...b, box: newBox } : b
+        );
+        return { ...page, bubbles: updatedBubbles };
+      })
+    );
+  };
+
   // Load sample manhwa page
   const handleLoadSample = () => {
     const sample = getSamplePages();
@@ -360,6 +373,7 @@ export default function HomePage() {
               <WebtoonReader
                 pages={pages}
                 onUpdateBubble={handleUpdateBubble}
+                onUpdateBubbleBox={handleUpdateBubbleBox}
                 onToggleScript={() => setIsScriptOpen(!isScriptOpen)}
                 isScriptOpen={isScriptOpen}
                 onStartTranslateAll={() => handleStartTranslateAll()}
@@ -370,6 +384,7 @@ export default function HomePage() {
               <MangaPageReader
                 pages={pages}
                 onUpdateBubble={handleUpdateBubble}
+                onUpdateBubbleBox={handleUpdateBubbleBox}
                 onToggleScript={() => setIsScriptOpen(!isScriptOpen)}
                 isScriptOpen={isScriptOpen}
                 onStartTranslateAll={() => handleStartTranslateAll()}

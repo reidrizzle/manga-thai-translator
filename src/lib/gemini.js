@@ -16,7 +16,12 @@ Rules for Thai Comic Typesetting & Localization:
 2. Use authentic Thai comic dialog particles appropriately (เช่น "วะ", "โว้ย", "สิ", "น่า", "หืม?", "เอ๊ะ!", "บ้าเอ๊ย!", "ชิ!") matching character personality.
 3. CRITICAL RULE FOR SOUND EFFECTS (SFX): STRICTLY DO NOT detect or extract ambient background sound effects (SFX) that are hand-drawn across the background, characters, or faces (เช่น 흠칫, 띠링, 쿵, 쾅, サッ, ドン, แกรก, ฟึ่บ). DO NOT create overlays for loose sound effects!
 4. ONLY extract text inside actual speech bubbles (บอลลูนคำพูด), thought bubbles, narration panels, and game status UI windows (หน้าต่างสถานะ/ระบบเกม).
-5. For speech bubbles, the bounding box must fit snuggly inside the bubble covering the original foreign text.
+5. PRECISE BOUNDING BOXES: Detect the EXACT 2D coordinates [ymin, xmin, ymax, xmax] normalized on a 0 to 1000 integer scale:
+   - ymin: top edge of the text bubble (0-1000)
+   - xmin: left edge of the text bubble (0-1000)
+   - ymax: bottom edge of the text bubble (0-1000)
+   - xmax: right edge of the text bubble (0-1000)
+   CRITICAL: The box must be TIGHT around the speech bubble containing the dialogue. DO NOT encompass empty space, entire panels, or artwork!
 6. Provide natural Thai line breaks (\\n) in "thai_translation" if the text is multi-line to fit the shape of the speech bubble naturally (เช่น "ก่อนอื่น มาดู\\nสกิลของฉันก่อน" หรือ "แล้วนี่\\nมันอะไร?").
 7. Detect background color type ("bg_color": "white" for standard speech bubbles, "dark" for blue/black game status windows or dark night narration boxes) and text color ("text_color": "black" or "white").
 
@@ -30,13 +35,8 @@ Return your response strictly in valid JSON matching this schema:
       "shape": "bubble" | "rect",
       "bg_color": "white" | "dark",
       "text_color": "black" | "white",
-      "box": {
-        "x": 15.2,
-        "y": 24.5,
-        "width": 28.0,
-        "height": 14.2
-      },
-      "original_text": "원본 텍스트 / 原文テキスト / Original text",
+      "box_2d": [ymin, xmin, ymax, xmax],
+      "original_text": "Original dialogue text",
       "thai_translation": "บทแปลภาษาไทยที่ลื่นไหล ตัดบรรทัดด้วย \\n อย่างเป็นธรรมชาติ",
       "speaker_tone": "confident / whispering / furious / confused / mocking / system_alert"
     }
@@ -198,17 +198,17 @@ Output JSON only.
       rawText = response.text();
       if (rawText) break; // Succeeded!
     } catch (err) {
-      console.warn(`Model ${candidate} failed:`, err.message);
+      console.warn(`Model ${candidate} failed (${err.message}). Trying fallback model...`);
       lastError = err;
+      // Abort only if the API key itself is completely invalid
       if (
-        err.message.includes('404') ||
-        err.message.includes('not found') ||
-        err.message.includes('not supported')
+        err.message.includes('API key not valid') ||
+        err.message.includes('API_KEY_INVALID')
       ) {
-        continue;
-      } else {
         throw err;
       }
+      // For any other error (503 high demand, 429 rate limit, 500, 404), seamlessly try the next model
+      continue;
     }
   }
 
@@ -242,24 +242,49 @@ Output JSON only.
   });
 
   const normalizedBubbles = dialogueOnly.map((b, idx) => {
-    let box = b.box || {};
-    if (b.box_2d && Array.isArray(b.box_2d)) {
-      const scale = b.box_2d.some((v) => v > 100) ? 10 : 1;
-      const [ymin, xmin, ymax, xmax] = b.box_2d.map((v) => v / scale);
-      box = {
-        x: xmin,
-        y: ymin,
-        width: Math.max(5, xmax - xmin),
-        height: Math.max(3, ymax - ymin),
-      };
-    } else if (b.x !== undefined && b.y !== undefined) {
-      box = {
-        x: Number(b.x),
-        y: Number(b.y),
-        width: Number(b.width || b.w || 30),
-        height: Number(b.height || b.h || 12),
-      };
+    let x = 15, y = 15, width = 30, height = 10;
+
+    // Standard Gemini 2D Object Detection: [ymin, xmin, ymax, xmax] (0-1000 scale)
+    if (Array.isArray(b.box_2d) && b.box_2d.length === 4) {
+      const [ymin, xmin, ymax, xmax] = b.box_2d.map(Number);
+      const scale = (ymin > 100 || xmin > 100 || ymax > 100 || xmax > 100) ? 10 : 1;
+      x = xmin / scale;
+      y = ymin / scale;
+      width = (xmax - xmin) / scale;
+      height = (ymax - ymin) / scale;
+    } else if (Array.isArray(b.box) && b.box.length === 4) {
+      const [ymin, xmin, ymax, xmax] = b.box.map(Number);
+      const scale = (ymin > 100 || xmin > 100 || ymax > 100 || xmax > 100) ? 10 : 1;
+      x = xmin / scale;
+      y = ymin / scale;
+      width = (xmax - xmin) / scale;
+      height = (ymax - ymin) / scale;
+    } else if (b.box && typeof b.box === 'object') {
+      if (b.box.ymin !== undefined && b.box.xmin !== undefined) {
+        const scale = (b.box.ymin > 100 || b.box.xmin > 100) ? 10 : 1;
+        x = Number(b.box.xmin) / scale;
+        y = Number(b.box.ymin) / scale;
+        width = (Number(b.box.xmax) - Number(b.box.xmin)) / scale;
+        height = (Number(b.box.ymax) - Number(b.box.ymin)) / scale;
+      } else if (b.box.x !== undefined && b.box.y !== undefined) {
+        const bx = Number(b.box.x);
+        const by = Number(b.box.y);
+        const bw = Number(b.box.width || b.box.w || 30);
+        const bh = Number(b.box.height || b.box.h || 10);
+        const scale = (bx > 100 || by > 100 || bw > 100 || bh > 100) ? 10 : 1;
+        x = bx / scale;
+        y = by / scale;
+        width = bw / scale;
+        height = bh / scale;
+      }
     }
+
+    // Safety constraints:
+    // Speech bubbles must never exceed 22% of image height to prevent massive white blocks.
+    width = Math.max(8, Math.min(88, Number(width) || 28));
+    height = Math.max(3.5, Math.min(22, Number(height) || 10));
+    x = Math.max(1, Math.min(94, Number(x) || 15));
+    y = Math.max(1, Math.min(95, Number(y) || 15));
 
     const type = b.type || 'speech';
     const isDarkBg =
@@ -274,10 +299,10 @@ Output JSON only.
       bg_color: isDarkBg ? 'dark' : (b.bg_color || 'white'),
       text_color: b.text_color || (isDarkBg ? 'white' : 'black'),
       box: {
-        x: Math.max(0, Math.min(95, Number(box.x) || 15)),
-        y: Math.max(0, Math.min(95, Number(box.y) || 15)),
-        width: Math.max(5, Math.min(90, Number(box.width) || 30)),
-        height: Math.max(3, Math.min(60, Number(box.height) || 12)),
+        x: Number(x.toFixed(2)),
+        y: Number(y.toFixed(2)),
+        width: Number(width.toFixed(2)),
+        height: Number(height.toFixed(2)),
       },
       original_text: b.original_text || b.text || b.original || '',
       thai_translation: b.thai_translation || b.translation || b.thai || '',

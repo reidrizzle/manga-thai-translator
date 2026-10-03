@@ -45,10 +45,13 @@ export async function POST(request) {
         }
       } catch (err) {
         lastError = err;
-        if (err.message.includes('404') || err.message.includes('not found')) {
-          continue;
+        if (
+          err.message.includes('API key not valid') ||
+          err.message.includes('API_KEY_INVALID')
+        ) {
+          throw err;
         }
-        throw err;
+        continue;
       }
     }
 

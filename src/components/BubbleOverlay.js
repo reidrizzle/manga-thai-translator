@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { MessageSquare, Edit3, Eye, Check } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { MessageSquare, Edit3, Eye, Check, Move } from 'lucide-react';
 
 export default function BubbleOverlay({
   bubble,
@@ -13,10 +13,16 @@ export default function BubbleOverlay({
     hideSfx: true,      // ซ่อนเสียงประกอบไม่ให้บังหน้าตัวละคร
   },
   onUpdateBubbleText,
+  onUpdateBubbleBox,
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(bubble.thai_translation || '');
   const [isHovered, setIsHovered] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  const overlayRef = useRef(null);
+  const dragStartRef = useRef(null);
 
   const { box } = bubble;
   if (!box) return null;
@@ -44,26 +50,80 @@ export default function BubbleOverlay({
     }
   };
 
+  // Drag-and-drop repositioning:
+  // Allows user to drag any speech bubble if AI placement needs fine-tuning
+  const handleMouseDown = (e) => {
+    if (isEditing) return;
+    if (e.button !== 0) return; // Only left click
+
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: box.x,
+      initialY: box.y,
+    };
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e) => {
+      if (!dragStartRef.current || !overlayRef.current) return;
+      const parent = overlayRef.current.parentElement;
+      if (!parent) return;
+
+      const parentRect = parent.getBoundingClientRect();
+      const deltaXPercent = ((e.clientX - dragStartRef.current.startX) / parentRect.width) * 100;
+      const deltaYPercent = ((e.clientY - dragStartRef.current.startY) / parentRect.height) * 100;
+
+      setDragOffset({ x: deltaXPercent, y: deltaYPercent });
+    };
+
+    const handleMouseUp = () => {
+      if (dragStartRef.current && onUpdateBubbleBox) {
+        const finalX = Math.max(0, Math.min(95, dragStartRef.current.initialX + dragOffset.x));
+        const finalY = Math.max(0, Math.min(95, dragStartRef.current.initialY + dragOffset.y));
+        onUpdateBubbleBox(bubble.id, {
+          ...box,
+          x: Number(finalX.toFixed(2)),
+          y: Number(finalY.toFixed(2)),
+        });
+      }
+      setIsDragging(false);
+      setDragOffset({ x: 0, y: 0 });
+      dragStartRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset, box, bubble.id, onUpdateBubbleBox]);
+
   const text = bubble.thai_translation || '';
   const textLen = text.length || 1;
 
-  // Intelligent Manga Typesetting: Proportional Font Sizing
-  const lines = text.split('\n').filter(Boolean);
-  const numLines = Math.max(lines.length, Math.ceil(textLen / Math.max(3, box.width * 0.42)));
-  const maxLineCharCount = Math.max(...(lines.length > 0 ? lines.map((l) => l.length) : [textLen / numLines]), 1);
-
-  // Proportional scaling fitting both box width and box height
-  const sizeFromWidth = (box.width / Math.max(2.5, maxLineCharCount)) * 9.2;
-  const sizeFromHeight = (box.height / Math.max(1, numLines)) * 1.85;
-  let optimalSize = Math.min(sizeFromWidth, sizeFromHeight);
-
+  // Clear, Legible Manga Typography Font Sizing:
+  // Short phrases get bold prominent sizing, longer text fits proportionally
   const userScale = bubbleStyle.fontSizeScale || 1;
-  let computedFontSize = Math.max(11, Math.min(26, optimalSize * userScale));
+  let baseFontSize = 17;
 
-  // Short punchy expressions (e.g., "...?!", "อะไรกัน?!") get prominent comic lettering
-  if (textLen <= 6) {
-    computedFontSize = Math.max(15, Math.min(28, box.width * 0.55 * userScale));
+  if (textLen <= 5) {
+    baseFontSize = 23; // e.g. "...?!", "บ้าเอ๊ย!"
+  } else if (textLen <= 14) {
+    baseFontSize = 19.5; // e.g. "ก่อนอื่น มาดูสกิลของฉันก่อน"
+  } else if (textLen <= 35) {
+    baseFontSize = 17; // standard 2-3 lines
+  } else if (textLen <= 70) {
+    baseFontSize = 15; // longer narration
+  } else {
+    baseFontSize = 13.5; // dense gaming text
   }
+
+  const computedFontSize = Math.round(baseFontSize * userScale);
 
   // Detect background and text color (Standard white comic bubble vs dark gaming UI status window)
   const isDark =
@@ -75,40 +135,53 @@ export default function BubbleOverlay({
   const isRect = bubble.shape === 'rect' || isNarration || isDark;
 
   const fontFam = bubbleStyle.fontFamily || 'var(--font-mitr), var(--font-prompt), sans-serif';
+  const isLens = bubbleStyle.renderMode === 'lens';
+
+  const currentX = Math.max(0, Math.min(95, box.x + dragOffset.x));
+  const currentY = Math.max(0, Math.min(95, box.y + dragOffset.y));
 
   return (
     <div
+      ref={overlayRef}
       style={{
         position: 'absolute',
-        left: `${box.x}%`,
-        top: `${box.y}%`,
+        left: `${currentX}%`,
+        top: `${currentY}%`,
         width: `${box.width}%`,
         height: `${box.height}%`,
-        zIndex: isHovered || isEditing ? 35 : 20,
+        zIndex: isHovered || isEditing || isDragging ? 35 : 20,
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="manga-bubble-overlay group pointer-events-auto cursor-pointer flex items-center justify-center"
+      onMouseDown={handleMouseDown}
+      className={`manga-bubble-overlay group pointer-events-auto flex items-center justify-center ${
+        isDragging ? 'cursor-grabbing opacity-90' : 'cursor-move'
+      }`}
     >
-      {/* Speech Bubble / Dialogue Container - Clean Inpainting without outer borders/shadows */}
+      {/* Speech Bubble / Dialogue Container - Snug inpainting without massive empty cards */}
       <div
-        className={`w-full h-full flex items-center justify-center p-1.5 text-center transition-all select-none overflow-hidden ${
-          isHovered ? 'ring-1 ring-indigo-400/50' : ''
-        }`}
+        className={`flex items-center justify-center p-2 text-center transition-all select-none overflow-hidden ${
+          isHovered ? 'ring-2 ring-indigo-400 shadow-lg' : ''
+        } ${isRect ? 'w-full h-full' : 'w-full'}`}
         style={{
           backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : '#ffffff',
           color: isDark ? '#ffffff' : '#0a0a0a',
-          borderRadius: isRect ? '8px' : '9999px',
+          borderRadius: isRect ? '6px' : '9999px',
           border: 'none',
           boxShadow: 'none',
           fontFamily: fontFam,
+          // Lens mode: Fits dialogue height snugly so it never blocks character faces below
+          height: isLens && !isRect ? 'fit-content' : '100%',
+          maxHeight: '100%',
+          minHeight: '28px',
         }}
-        onClick={() => !isEditing && setIsEditing(true)}
+        onClick={() => !isEditing && !isDragging && setIsEditing(true)}
       >
         {isEditing ? (
           <div
-            className="w-full h-full flex flex-col justify-between p-1 bg-indigo-950 text-white rounded-lg"
+            className="w-full h-full flex flex-col justify-between p-1 bg-indigo-950 text-white rounded-lg min-h-[70px]"
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <textarea
               autoFocus
@@ -142,22 +215,22 @@ export default function BubbleOverlay({
         )}
       </div>
 
-      {/* Hover Info Tooltip (Original text & quick edit button) */}
-      {isHovered && !isEditing && (
+      {/* Hover Info Tooltip (Shows original vs Thai, and instructions to drag / edit) */}
+      {isHovered && !isEditing && !isDragging && (
         <div
-          className="absolute -top-16 left-1/2 -translate-x-1/2 min-w-[220px] max-w-[320px] p-2.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-left text-xs pointer-events-auto z-50 backdrop-blur-md"
+          className="absolute -top-20 left-1/2 -translate-x-1/2 min-w-[240px] max-w-[340px] p-2.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-left text-xs pointer-events-auto z-50 backdrop-blur-md"
           onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1 border-b border-slate-800 pb-1">
             <span className="font-semibold text-indigo-400 flex items-center gap-1">
               <MessageSquare className="w-3 h-3" />
               {bubble.type.toUpperCase()}
             </span>
-            {bubble.speaker_tone && (
-              <span className="text-pink-400 bg-pink-950/60 px-1 rounded">
-                {bubble.speaker_tone}
-              </span>
-            )}
+            <span className="text-slate-400 flex items-center gap-1 text-[9px]">
+              <Move className="w-2.5 h-2.5 text-indigo-400" />
+              ลากเพื่อย้ายตำแหน่ง
+            </span>
           </div>
 
           <div className="space-y-1">
@@ -174,12 +247,12 @@ export default function BubbleOverlay({
           </div>
 
           <div className="mt-1.5 pt-1 border-t border-slate-800/80 flex items-center justify-between text-[9px] text-slate-400">
-            <span>คลิกเพื่อแก้ไขคำแปล</span>
+            <span>คลิกที่บอลลูนเพื่อแก้ไขคำแปล</span>
             <button
               onClick={() => setIsEditing(true)}
               className="text-indigo-400 hover:text-indigo-300 font-semibold"
             >
-              แก้ไข
+              แก้ไขคำแปล
             </button>
           </div>
         </div>
