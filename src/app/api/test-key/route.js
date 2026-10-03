@@ -24,11 +24,10 @@ export async function POST(request) {
 
     const genAI = new GoogleGenerativeAI(key);
     const ALLOWED = [
-      'gemini-2.5-flash',
       'gemini-3.8-flash',
-      'gemini-2.0-flash',
+      'gemini-2.5-flash',
     ];
-    const preferred = ALLOWED.includes(modelName) ? modelName : 'gemini-2.5-flash';
+    const preferred = ALLOWED.includes(modelName) ? modelName : 'gemini-3.8-flash';
     const candidates = Array.from(new Set([preferred, ...ALLOWED]));
 
     let lastError = null;

@@ -164,17 +164,18 @@ Output JSON only.
     },
   };
 
-  // Available models: 2.5 Flash (primary), 3.8 Flash (fast OCR), 2.0 Flash (stable fallback)
-  // Note: gemini-3.1-pro removed — it returned 404 not found on v1beta
+  // ⚡ Current Gemini Free Tier models (Oct 2026)
+  // gemini-3.8-flash  — GA, recommended by Google (v1beta confirmed)
+  // gemini-2.5-flash  — Available for existing users, good fallback
+  // Note: gemini-2.0-flash is deprecated (404). gemini-3.1-pro never existed.
   const ALLOWED_MODELS = [
-    'gemini-2.5-flash',
     'gemini-3.8-flash',
-    'gemini-2.0-flash',
+    'gemini-2.5-flash',
   ];
 
   const preferredModel = ALLOWED_MODELS.includes(modelName)
     ? modelName
-    : 'gemini-2.5-flash';
+    : 'gemini-3.8-flash';
 
   const candidateModels = Array.from(
     new Set([preferredModel, ...ALLOWED_MODELS])

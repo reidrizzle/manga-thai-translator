@@ -281,14 +281,11 @@ export default function SettingsModal({
               onChange={(e) => setLocalModel(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
             >
-              <option value="gemini-2.5-flash">
-                Gemini 2.5 Flash (แนะนำ - เร็ว โควตาฟรีสูง เหมาะกับมังฮวา/มังงะ)
-              </option>
               <option value="gemini-3.8-flash">
-                Gemini 3.8 Flash (โมเดลตัวท็อปความเร็วและ OCR)
+                Gemini 3.8 Flash (แนะนำ - โมเดลใหม่ล่าสุด เร็ว OCR ดีเยี่ยม)
               </option>
-              <option value="gemini-2.0-flash">
-                Gemini 2.0 Flash (โมเดลสำรอง เสถียรสูง)
+              <option value="gemini-2.5-flash">
+                Gemini 2.5 Flash (สำรอง - เสถียร โควตาฟรีสูง)
               </option>
             </select>
           </div>

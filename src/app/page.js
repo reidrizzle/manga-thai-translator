@@ -41,16 +41,15 @@ export default function HomePage() {
       if (savedKey) setApiKey(savedKey);
 
       const ALLOWED_MODELS = [
-        'gemini-2.5-flash',
         'gemini-3.8-flash',
-        'gemini-2.0-flash',
+        'gemini-2.5-flash',
       ];
       if (savedModel && ALLOWED_MODELS.includes(savedModel)) {
         setModelName(savedModel);
       } else {
-        // Clear any stored invalid model (e.g. gemini-3.1-pro which returns 404)
-        setModelName('gemini-2.5-flash');
-        localStorage.setItem('manga_gemini_model', 'gemini-2.5-flash');
+        // Reset to gemini-3.8-flash for any deprecated/invalid stored model
+        setModelName('gemini-3.8-flash');
+        localStorage.setItem('manga_gemini_model', 'gemini-3.8-flash');
       }
     }
   }, []);
