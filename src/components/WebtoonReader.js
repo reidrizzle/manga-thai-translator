@@ -32,6 +32,9 @@ export default function WebtoonReader({
   const [fontSizeScale, setFontSizeScale] = useState(1);
   const [renderMode, setRenderMode] = useState('lens'); // 'lens' (แอปแปลภาษา ไม่บังภาพ) | 'patch' (ปิดทับคำเดิม)
   const [hideSfx, setHideSfx] = useState(true); // Default true: ไม่แสดงเอฟเฟกต์เสียงบังหน้าตัวละคร
+  const [fontFamily, setFontFamily] = useState(
+    'var(--font-mitr), var(--font-prompt), sans-serif'
+  );
   const [scrollProgress, setScrollProgress] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const readerRef = useRef(null);
@@ -80,7 +83,7 @@ export default function WebtoonReader({
   };
 
   const bubbleStyle = {
-    fontFamily: 'var(--font-prompt)',
+    fontFamily,
     fontSizeScale,
     renderMode,
     hideSfx,
@@ -222,9 +225,32 @@ export default function WebtoonReader({
           </button>
         </div>
 
+        {/* Font Family Selector */}
+        <div className="flex items-center gap-1 bg-slate-900/60 px-2.5 py-1 rounded-xl border border-slate-800 text-xs text-slate-300">
+          <Type className="w-3.5 h-3.5 text-pink-400 flex-shrink-0" />
+          <select
+            value={fontFamily}
+            onChange={(e) => setFontFamily(e.target.value)}
+            className="bg-transparent text-slate-200 outline-none text-xs cursor-pointer max-w-[110px] sm:max-w-none"
+            title="เลือกแบบอักษรคำแปล"
+          >
+            <option value="var(--font-mitr), var(--font-prompt), sans-serif" className="bg-slate-900 text-white">
+              มิตร (Mitr - ลายเส้นการ์ตูน)
+            </option>
+            <option value="var(--font-prompt), sans-serif" className="bg-slate-900 text-white">
+              พร้อมท์ (Prompt - โมเดิร์น)
+            </option>
+            <option value="var(--font-kanit), sans-serif" className="bg-slate-900 text-white">
+              คณิต (Kanit - ตัวหนาแอ็กชัน)
+            </option>
+            <option value="var(--font-sarabun), sans-serif" className="bg-slate-900 text-white">
+              สารบรรณ (Sarabun - ทางการ)
+            </option>
+          </select>
+        </div>
+
         {/* Font Size Scaling */}
         <div className="flex items-center gap-1 bg-slate-900/60 px-2 py-1 rounded-xl border border-slate-800 text-xs text-slate-300">
-          <Type className="w-3.5 h-3.5 text-indigo-400" />
           <button
             type="button"
             onClick={() => setFontSizeScale((s) => Math.max(0.7, s - 0.1))}

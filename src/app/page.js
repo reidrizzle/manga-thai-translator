@@ -42,7 +42,6 @@ export default function HomePage() {
 
       const ALLOWED_MODELS = [
         'gemini-2.5-flash',
-        'gemini-3.5-flash',
         'gemini-3.8-flash',
         'gemini-3.1-pro',
       ];

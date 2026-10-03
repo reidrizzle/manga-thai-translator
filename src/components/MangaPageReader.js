@@ -27,7 +27,9 @@ export default function MangaPageReader({
   const [showOriginal, setShowOriginal] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [fontSizeScale, setFontSizeScale] = useState(1);
-  const [fontFamily, setFontFamily] = useState('var(--font-sarabun)');
+  const [fontFamily, setFontFamily] = useState(
+    'var(--font-mitr), var(--font-prompt), sans-serif'
+  );
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showThumbnails, setShowThumbnails] = useState(false);
 
@@ -78,7 +80,7 @@ export default function MangaPageReader({
   const [hideSfx, setHideSfx] = useState(true);
 
   const bubbleStyle = {
-    fontFamily: 'var(--font-prompt)',
+    fontFamily,
     fontSizeScale,
     renderMode,
     hideSfx,

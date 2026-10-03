@@ -1,15 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MessageSquare, Edit3, Eye } from 'lucide-react';
+import { MessageSquare, Edit3, Eye, Check } from 'lucide-react';
 
 export default function BubbleOverlay({
   bubble,
   showOriginal = false,
   bubbleStyle = {
-    fontFamily: 'var(--font-prompt)',
+    fontFamily: 'var(--font-mitr), var(--font-prompt), sans-serif',
     fontSizeScale: 1,
-    renderMode: 'lens', // 'lens' (เหมือนแอปแปลภาษา ไม่บังภาพ) | 'patch' (ลบคำเดิมทับเนียน)
+    renderMode: 'lens', // 'lens' | 'patch'
     hideSfx: true,      // ซ่อนเสียงประกอบไม่ให้บังหน้าตัวละคร
   },
   onUpdateBubbleText,
@@ -21,10 +21,12 @@ export default function BubbleOverlay({
   const { box } = bubble;
   if (!box) return null;
 
-  // Rule: If it's a sound effect (SFX) and hideSfx is enabled, do not render to avoid covering art/faces
+  // Sound effects (SFX) exclusion rule:
+  // Never render loose ambient sound effects (e.g. 흠칫, 띠링, 쿵, ฟึ่บ) that block character artwork
   const isSfx =
     bubble.type === 'sfx' ||
-    (bubble.original_text && bubble.original_text.length <= 4 && !bubble.original_text.includes(' '));
+    (bubble.speaker_tone && bubble.speaker_tone.toLowerCase().includes('sfx')) ||
+    (bubble.original_text && bubble.original_text.length <= 3 && !bubble.original_text.includes(' ') && (bubble.thai_translation || '').length <= 4);
 
   if (isSfx && bubbleStyle.hideSfx !== false) {
     return null;
@@ -42,45 +44,37 @@ export default function BubbleOverlay({
     }
   };
 
-  const isNarration = bubble.type === 'narration';
   const text = bubble.thai_translation || '';
   const textLen = text.length || 1;
 
-  // Dynamic Font Size Auto-Calculation:
-  // Fits proportionally inside the speech bubble just like original comic typesetting
-  // width and height are in percentages (e.g. width: 25%, height: 12%)
-  const boxArea = box.width * box.height;
-  const estimatedCharsPerLine = Math.max(3, Math.floor(box.width / 2.2));
-  const estimatedLines = Math.max(1, Math.ceil(textLen / estimatedCharsPerLine));
+  // Intelligent Manga Typesetting: Proportional Font Sizing
+  const lines = text.split('\n').filter(Boolean);
+  const numLines = Math.max(lines.length, Math.ceil(textLen / Math.max(3, box.width * 0.42)));
+  const maxLineCharCount = Math.max(...(lines.length > 0 ? lines.map((l) => l.length) : [textLen / numLines]), 1);
 
-  // Compute font size in px scaled to container
-  let computedFontSize = Math.max(
-    11,
-    Math.min(22, (box.height / estimatedLines) * 2.1 * (bubbleStyle.fontSizeScale || 1))
-  );
+  // Proportional scaling fitting both box width and box height
+  const sizeFromWidth = (box.width / Math.max(2.5, maxLineCharCount)) * 9.2;
+  const sizeFromHeight = (box.height / Math.max(1, numLines)) * 1.85;
+  let optimalSize = Math.min(sizeFromWidth, sizeFromHeight);
 
-  if (textLen < 6) {
-    computedFontSize = Math.max(13, Math.min(24, box.width * 0.45 * (bubbleStyle.fontSizeScale || 1)));
+  const userScale = bubbleStyle.fontSizeScale || 1;
+  let computedFontSize = Math.max(11, Math.min(26, optimalSize * userScale));
+
+  // Short punchy expressions (e.g., "...?!", "อะไรกัน?!") get prominent comic lettering
+  if (textLen <= 6) {
+    computedFontSize = Math.max(15, Math.min(28, box.width * 0.55 * userScale));
   }
 
-  // Styling based on renderMode
-  const isLensMode = bubbleStyle.renderMode === 'lens';
+  // Detect background and text color (Standard white comic bubble vs dark gaming UI status window)
+  const isDark =
+    bubble.bg_color === 'dark' ||
+    bubble.type === 'system' ||
+    (bubble.speaker_tone && (bubble.speaker_tone.includes('evil') || bubble.speaker_tone.includes('system')));
 
-  // In Lens mode: Looks like Google Translate / Papago Manga lens (clean, seamless, subtle backdrop)
-  // In Patch mode: Soft clean white patch covering the foreign words
-  let containerBg = 'bg-white/95 text-slate-900 border border-slate-200/80 shadow-sm';
-  let textShadowStyle = {};
+  const isNarration = bubble.type === 'narration';
+  const isRect = bubble.shape === 'rect' || isNarration || isDark;
 
-  if (isLensMode) {
-    containerBg =
-      'bg-white/90 backdrop-blur-[1px] text-slate-950 border border-slate-300/60 shadow-md';
-  }
-
-  if (isNarration) {
-    containerBg = 'bg-amber-50/95 text-amber-950 border border-amber-300 shadow-sm';
-  } else if (bubble.speaker_tone && bubble.speaker_tone.includes('evil')) {
-    containerBg = 'bg-slate-950/95 text-white border border-purple-500/50 shadow-md';
-  }
+  const fontFam = bubbleStyle.fontFamily || 'var(--font-mitr), var(--font-prompt), sans-serif';
 
   return (
     <div
@@ -96,12 +90,18 @@ export default function BubbleOverlay({
       onMouseLeave={() => setIsHovered(false)}
       className="manga-bubble-overlay group pointer-events-auto cursor-pointer flex items-center justify-center"
     >
-      {/* Speech Bubble / Dialogue Container */}
+      {/* Speech Bubble / Dialogue Container - Clean Inpainting without outer borders/shadows */}
       <div
-        className={`w-full h-full rounded-2xl flex items-center justify-center p-2 text-center transition-all select-none overflow-hidden ${containerBg}`}
+        className={`w-full h-full flex items-center justify-center p-1.5 text-center transition-all select-none overflow-hidden ${
+          isHovered ? 'ring-1 ring-indigo-400/50' : ''
+        }`}
         style={{
-          borderRadius: isNarration ? '6px' : '18px',
-          fontFamily: bubbleStyle.fontFamily || 'var(--font-prompt)',
+          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : '#ffffff',
+          color: isDark ? '#ffffff' : '#0a0a0a',
+          borderRadius: isRect ? '8px' : '9999px',
+          border: 'none',
+          boxShadow: 'none',
+          fontFamily: fontFam,
         }}
         onClick={() => !isEditing && setIsEditing(true)}
       >
@@ -120,19 +120,21 @@ export default function BubbleOverlay({
               <button
                 type="button"
                 onClick={handleSaveEdit}
-                className="px-2.5 py-0.5 rounded bg-emerald-600 text-[10px] font-bold text-white hover:bg-emerald-500"
+                className="px-2.5 py-0.5 rounded bg-emerald-600 text-[10px] font-bold text-white hover:bg-emerald-500 flex items-center gap-1"
               >
-                บันทึก
+                <Check className="w-3 h-3" />
+                <span>บันทึก</span>
               </button>
             </div>
           </div>
         ) : (
           <p
-            className="font-bold leading-tight break-words text-center tracking-tight"
+            className="font-medium tracking-tight whitespace-pre-line text-center break-words leading-tight"
             style={{
               fontSize: `${computedFontSize}px`,
-              lineHeight: 1.22,
-              color: bubble.speaker_tone && bubble.speaker_tone.includes('evil') ? '#ffffff' : '#0f172a',
+              lineHeight: 1.25,
+              color: isDark ? '#ffffff' : '#0a0a0a',
+              textShadow: isDark ? '0 1px 2px rgba(0,0,0,0.8)' : 'none',
             }}
           >
             {bubble.thai_translation}
@@ -140,7 +142,7 @@ export default function BubbleOverlay({
         )}
       </div>
 
-      {/* Hover Info Tooltip (Shows original vs Thai and Tone) */}
+      {/* Hover Info Tooltip (Original text & quick edit button) */}
       {isHovered && !isEditing && (
         <div
           className="absolute -top-16 left-1/2 -translate-x-1/2 min-w-[220px] max-w-[320px] p-2.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-left text-xs pointer-events-auto z-50 backdrop-blur-md"

@@ -284,9 +284,6 @@ export default function SettingsModal({
               <option value="gemini-2.5-flash">
                 Gemini 2.5 Flash (แนะนำ - เร็ว โควตาฟรีสูง เหมาะกับมังฮวา/มังงะ)
               </option>
-              <option value="gemini-3.5-flash">
-                Gemini 3.5 Flash (โมเดลรุ่นใหม่ เร็วและแม่นยำสูง)
-              </option>
               <option value="gemini-3.8-flash">
                 Gemini 3.8 Flash (โมเดลตัวท็อปความเร็วและ OCR)
               </option>

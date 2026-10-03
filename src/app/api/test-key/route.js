@@ -25,7 +25,6 @@ export async function POST(request) {
     const genAI = new GoogleGenerativeAI(key);
     const ALLOWED = [
       'gemini-2.5-flash',
-      'gemini-3.5-flash',
       'gemini-3.8-flash',
       'gemini-3.1-pro',
     ];

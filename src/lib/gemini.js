@@ -9,20 +9,16 @@ import {
  */
 const SYSTEM_PROMPT = `
 You are a master professional translator specializing in Webtoon, Manhwa, and Manga localization into Thai.
-Your highest priority is to produce NATURAL, VIBRANT, and EMOTIVE Thai translations (ภาษาไม่แข็งกระด้าง ลื่นไหล เข้าปากคนไทย มีอารมณ์ขัน/ดุดันตามบริบทของตัวละคร).
+Your highest priority is to produce NATURAL, VIBRANT, and EMOTIVE Thai translations (ภาษาไม่แข็งกระด้าง ลื่นไหล เข้าปากคนไทย มีอารมณ์ขัน/ดุดันตามบริบทของตัวละคร) matching professional published Thai Webtoon / Manga quality.
 
-Rules for Thai Localization:
-1. Avoid literal word-for-word translation. Translate the INTENT and FEELING.
-2. Use authentic Thai comic dialog particles appropriately (เช่น "วะ", "โว้ย", "สิ", "น่า", "หืม?", "เอ๊ะ!", "บ้าเอ๊ย!", "ชิ!") matching the character's personality and status.
-3. CRITICAL RULE FOR SOUND EFFECTS (SFX): DO NOT detect or extract ambient background sound effects (SFX) that are drawn across characters, faces, or artwork! ONLY extract text inside actual speech bubbles (บอลลูนคำพูด), thought bubbles, and rectangular narration boxes.
-4. Bounding box coordinates must be TIGHT and snug around the dialogue, never oversized.
-
-You must detect dialogue text areas (speech bubbles, thought bubbles, narration boxes).
-For each text area, identify its bounding box coordinates in percentage (0 to 100) relative to image width and height:
-- x: left edge percentage (0 to 100)
-- y: top edge percentage (0 to 100)
-- width: bubble width percentage (0 to 100)
-- height: bubble height percentage (0 to 100)
+Rules for Thai Comic Typesetting & Localization:
+1. Translate the INTENT, TONE, and FEELING naturally into Thai, avoiding stiff literal translations.
+2. Use authentic Thai comic dialog particles appropriately (เช่น "วะ", "โว้ย", "สิ", "น่า", "หืม?", "เอ๊ะ!", "บ้าเอ๊ย!", "ชิ!") matching character personality.
+3. CRITICAL RULE FOR SOUND EFFECTS (SFX): STRICTLY DO NOT detect or extract ambient background sound effects (SFX) that are hand-drawn across the background, characters, or faces (เช่น 흠칫, 띠링, 쿵, 쾅, サッ, ドン, แกรก, ฟึ่บ). DO NOT create overlays for loose sound effects!
+4. ONLY extract text inside actual speech bubbles (บอลลูนคำพูด), thought bubbles, narration panels, and game status UI windows (หน้าต่างสถานะ/ระบบเกม).
+5. For speech bubbles, the bounding box must fit snuggly inside the bubble covering the original foreign text.
+6. Provide natural Thai line breaks (\\n) in "thai_translation" if the text is multi-line to fit the shape of the speech bubble naturally (เช่น "ก่อนอื่น มาดู\\nสกิลของฉันก่อน" หรือ "แล้วนี่\\nมันอะไร?").
+7. Detect background color type ("bg_color": "white" for standard speech bubbles, "dark" for blue/black game status windows or dark night narration boxes) and text color ("text_color": "black" or "white").
 
 Return your response strictly in valid JSON matching this schema:
 {
@@ -30,7 +26,10 @@ Return your response strictly in valid JSON matching this schema:
   "bubbles": [
     {
       "id": 1,
-      "type": "speech" | "thought" | "narration" | "sfx",
+      "type": "speech" | "thought" | "narration" | "system",
+      "shape": "bubble" | "rect",
+      "bg_color": "white" | "dark",
+      "text_color": "black" | "white",
       "box": {
         "x": 15.2,
         "y": 24.5,
@@ -38,8 +37,8 @@ Return your response strictly in valid JSON matching this schema:
         "height": 14.2
       },
       "original_text": "원본 텍스트 / 原文テキスト / Original text",
-      "thai_translation": "บทแปลภาษาไทยที่ลื่นไหล เป็นธรรมชาติ มีอารมณ์ร่วม",
-      "speaker_tone": "confident / whispering / furious / confused / mocking"
+      "thai_translation": "บทแปลภาษาไทยที่ลื่นไหล ตัดบรรทัดด้วย \\n อย่างเป็นธรรมชาติ",
+      "speaker_tone": "confident / whispering / furious / confused / mocking / system_alert"
     }
   ]
 }
@@ -165,10 +164,9 @@ Output JSON only.
     },
   };
 
-  // Candidate models restricted strictly to 2.5 Flash, 3.5 Flash, 3.8 Flash, and 3.1 Pro
+  // Candidate models restricted strictly to 2.5 Flash, 3.8 Flash, and 3.1 Pro (3.5 Flash removed as requested)
   const ALLOWED_MODELS = [
     'gemini-2.5-flash',
-    'gemini-3.5-flash',
     'gemini-3.8-flash',
     'gemini-3.1-pro',
   ];
@@ -234,7 +232,16 @@ Output JSON only.
     rawBubbles = data.boxes;
   }
 
-  const normalizedBubbles = rawBubbles.map((b, idx) => {
+  // Filter out any SFX bubbles completely to preserve artwork integrity
+  const dialogueOnly = rawBubbles.filter((b) => {
+    const type = (b.type || '').toLowerCase();
+    if (type === 'sfx') return false;
+    const tone = (b.speaker_tone || '').toLowerCase();
+    if (tone.includes('sfx') || tone.includes('sound')) return false;
+    return true;
+  });
+
+  const normalizedBubbles = dialogueOnly.map((b, idx) => {
     let box = b.box || {};
     if (b.box_2d && Array.isArray(b.box_2d)) {
       const scale = b.box_2d.some((v) => v > 100) ? 10 : 1;
@@ -254,9 +261,18 @@ Output JSON only.
       };
     }
 
+    const type = b.type || 'speech';
+    const isDarkBg =
+      b.bg_color === 'dark' ||
+      type === 'system' ||
+      (b.speaker_tone && (b.speaker_tone.includes('evil') || b.speaker_tone.includes('system')));
+
     return {
       id: b.id || idx + 1,
-      type: b.type || 'speech',
+      type: type,
+      shape: b.shape || (type === 'narration' || type === 'system' ? 'rect' : 'bubble'),
+      bg_color: isDarkBg ? 'dark' : (b.bg_color || 'white'),
+      text_color: b.text_color || (isDarkBg ? 'white' : 'black'),
       box: {
         x: Math.max(0, Math.min(95, Number(box.x) || 15)),
         y: Math.max(0, Math.min(95, Number(box.y) || 15)),
