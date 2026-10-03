@@ -1,16 +1,28 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Edit3, Eye, Check, Move } from 'lucide-react';
+import { MessageSquare, Check, Move } from 'lucide-react';
 
+/**
+ * BubbleOverlay — Manga / Manhwa Speech Bubble Inpainting
+ *
+ * Design philosophy:
+ *   - The overlay must feel like reading the ORIGINAL comic, just in Thai.
+ *   - We do NOT create a new visible box / card on top of the artwork.
+ *   - Instead, we paint *only the interior of the bubble* with a matching background color
+ *     (leaving the original drawn border/outline perfectly visible through the 10–15 % inset
+ *     around all four edges).
+ *   - Thai text is set at a clean, readable comic-book size and centered in the cleared area.
+ *   - SFX drawn on artwork are completely ignored so character faces are never covered.
+ */
 export default function BubbleOverlay({
   bubble,
   showOriginal = false,
   bubbleStyle = {
     fontFamily: 'var(--font-mitr), var(--font-prompt), sans-serif',
     fontSizeScale: 1,
-    renderMode: 'lens', // 'lens' | 'patch'
-    hideSfx: true,      // ซ่อนเสียงประกอบไม่ให้บังหน้าตัวละคร
+    renderMode: 'lens',
+    hideSfx: true,
   },
   onUpdateBubbleText,
   onUpdateBubbleBox,
@@ -18,168 +30,174 @@ export default function BubbleOverlay({
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(bubble.thai_translation || '');
   const [isHovered, setIsHovered] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-
+  const [dragDelta, setDragDelta] = useState({ x: 0, y: 0 });
+  const isDragging = useRef(false);
+  const dragStart = useRef(null);
   const overlayRef = useRef(null);
-  const dragStartRef = useRef(null);
 
   const { box } = bubble;
   if (!box) return null;
 
-  // Sound effects (SFX) exclusion rule:
-  // Never render loose ambient sound effects (e.g. 흠칫, 띠링, 쿵, ฟึ่บ) that block character artwork
+  // === SFX EXCLUSION ===
+  // Hard-drawn sound effects (사각, 흠칫, ฟึ่บ, etc.) must never generate an overlay
   const isSfx =
     bubble.type === 'sfx' ||
     (bubble.speaker_tone && bubble.speaker_tone.toLowerCase().includes('sfx')) ||
-    (bubble.original_text && bubble.original_text.length <= 3 && !bubble.original_text.includes(' ') && (bubble.thai_translation || '').length <= 4);
+    (
+      bubble.original_text &&
+      bubble.original_text.trim().length <= 3 &&
+      !bubble.original_text.includes(' ') &&
+      (bubble.thai_translation || '').trim().length <= 4
+    );
 
-  if (isSfx && bubbleStyle.hideSfx !== false) {
-    return null;
-  }
-
-  if (showOriginal) {
-    return null;
-  }
+  if (isSfx && bubbleStyle.hideSfx !== false) return null;
+  if (showOriginal) return null;
 
   const handleSaveEdit = (e) => {
     e.stopPropagation();
     setIsEditing(false);
-    if (onUpdateBubbleText) {
-      onUpdateBubbleText(bubble.id, editText);
-    }
+    if (onUpdateBubbleText) onUpdateBubbleText(bubble.id, editText);
   };
 
-  // Drag-and-drop repositioning:
-  // Allows user to drag any speech bubble if AI placement needs fine-tuning
+  // === DRAG TO REPOSITION ===
   const handleMouseDown = (e) => {
-    if (isEditing) return;
-    if (e.button !== 0) return; // Only left click
-
-    dragStartRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      initialX: box.x,
-      initialY: box.y,
+    if (isEditing || e.button !== 0) return;
+    e.preventDefault();
+    isDragging.current = true;
+    dragStart.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      origX: box.x,
+      origY: box.y,
     };
-    setIsDragging(true);
   };
 
   useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e) => {
-      if (!dragStartRef.current || !overlayRef.current) return;
+    const onMove = (e) => {
+      if (!isDragging.current || !dragStart.current || !overlayRef.current) return;
       const parent = overlayRef.current.parentElement;
       if (!parent) return;
-
-      const parentRect = parent.getBoundingClientRect();
-      const deltaXPercent = ((e.clientX - dragStartRef.current.startX) / parentRect.width) * 100;
-      const deltaYPercent = ((e.clientY - dragStartRef.current.startY) / parentRect.height) * 100;
-
-      setDragOffset({ x: deltaXPercent, y: deltaYPercent });
+      const pr = parent.getBoundingClientRect();
+      const dx = ((e.clientX - dragStart.current.mouseX) / pr.width) * 100;
+      const dy = ((e.clientY - dragStart.current.mouseY) / pr.height) * 100;
+      setDragDelta({ x: dx, y: dy });
     };
 
-    const handleMouseUp = () => {
-      if (dragStartRef.current && onUpdateBubbleBox) {
-        const finalX = Math.max(0, Math.min(95, dragStartRef.current.initialX + dragOffset.x));
-        const finalY = Math.max(0, Math.min(95, dragStartRef.current.initialY + dragOffset.y));
-        onUpdateBubbleBox(bubble.id, {
-          ...box,
-          x: Number(finalX.toFixed(2)),
-          y: Number(finalY.toFixed(2)),
-        });
+    const onUp = () => {
+      if (!isDragging.current || !dragStart.current) return;
+      if (onUpdateBubbleBox) {
+        const nx = Math.max(0, Math.min(95, dragStart.current.origX + dragDelta.x));
+        const ny = Math.max(0, Math.min(95, dragStart.current.origY + dragDelta.y));
+        onUpdateBubbleBox(bubble.id, { ...box, x: +nx.toFixed(2), y: +ny.toFixed(2) });
       }
-      setIsDragging(false);
-      setDragOffset({ x: 0, y: 0 });
-      dragStartRef.current = null;
+      isDragging.current = false;
+      dragStart.current = null;
+      setDragDelta({ x: 0, y: 0 });
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
     };
-  }, [isDragging, dragOffset, box, bubble.id, onUpdateBubbleBox]);
+  }, [dragDelta, box, bubble.id, onUpdateBubbleBox]);
 
-  const text = bubble.thai_translation || '';
-  const textLen = text.length || 1;
-
-  // Clear, Legible Manga Typography Font Sizing:
-  // Short phrases get bold prominent sizing, longer text fits proportionally
-  const userScale = bubbleStyle.fontSizeScale || 1;
-  let baseFontSize = 17;
-
-  if (textLen <= 5) {
-    baseFontSize = 23; // e.g. "...?!", "บ้าเอ๊ย!"
-  } else if (textLen <= 14) {
-    baseFontSize = 19.5; // e.g. "ก่อนอื่น มาดูสกิลของฉันก่อน"
-  } else if (textLen <= 35) {
-    baseFontSize = 17; // standard 2-3 lines
-  } else if (textLen <= 70) {
-    baseFontSize = 15; // longer narration
-  } else {
-    baseFontSize = 13.5; // dense gaming text
-  }
-
-  const computedFontSize = Math.round(baseFontSize * userScale);
-
-  // Detect background and text color (Standard white comic bubble vs dark gaming UI status window)
+  // === COLOUR DETECTION ===
   const isDark =
     bubble.bg_color === 'dark' ||
     bubble.type === 'system' ||
-    (bubble.speaker_tone && (bubble.speaker_tone.includes('evil') || bubble.speaker_tone.includes('system')));
+    (bubble.speaker_tone && (
+      bubble.speaker_tone.includes('evil') ||
+      bubble.speaker_tone.includes('system')
+    ));
 
   const isNarration = bubble.type === 'narration';
+  // Rect bubbles (narration / system UI) don't need the inset trick — they're rectangular already
   const isRect = bubble.shape === 'rect' || isNarration || isDark;
 
-  const fontFam = bubbleStyle.fontFamily || 'var(--font-mitr), var(--font-prompt), sans-serif';
-  const isLens = bubbleStyle.renderMode === 'lens';
+  // === FONT SIZING ===
+  // Fixed-tier sizes so short exclamations are big and narration blocks stay readable
+  const text = bubble.thai_translation || '';
+  const textLen = text.length || 1;
+  const userScale = bubbleStyle.fontSizeScale || 1;
 
-  const currentX = Math.max(0, Math.min(95, box.x + dragOffset.x));
-  const currentY = Math.max(0, Math.min(95, box.y + dragOffset.y));
+  let basePx;
+  if (textLen <= 5)       basePx = 22;   // "...!!", "หืม?"
+  else if (textLen <= 15) basePx = 18;
+  else if (textLen <= 40) basePx = 16;
+  else if (textLen <= 80) basePx = 14.5;
+  else                    basePx = 13;
+
+  const fontSize = Math.round(basePx * userScale);
+  const fontFam = bubbleStyle.fontFamily || 'var(--font-mitr), var(--font-prompt), sans-serif';
+
+  // === INPAINTING INSET ===
+  // The outer wrapper sits exactly over the bounding-box coordinates returned by Gemini.
+  // The inner "painted" area is inset by ~10 % on each side so the original drawn bubble
+  // border (the spiky/rounded outline drawn by the artist) remains fully visible.
+  // This gives the authentic "text replaced in-place" feel.
+  const INSET_SPEECH   = '10%';   // oval/round speech bubbles — leave border visible
+  const INSET_THOUGHT  = '8%';    // thought bubbles — slightly less inset
+  const INSET_RECT     = '4px';   // narration/system rectangles — almost flush
+
+  const inset = isRect ? INSET_RECT : (bubble.type === 'thought' ? INSET_THOUGHT : INSET_SPEECH);
+  const innerBorderRadius = isRect ? '4px' : '50%';   // oval for speech, rectangle for narration
+
+  const bgColor = isDark ? 'rgba(10, 12, 28, 0.97)' : '#ffffff';
+  const textColor = isDark ? '#ffffff' : '#0a0a0a';
+
+  const liveX = Math.max(0, Math.min(95, box.x + dragDelta.x));
+  const liveY = Math.max(0, Math.min(95, box.y + dragDelta.y));
 
   return (
     <div
       ref={overlayRef}
       style={{
         position: 'absolute',
-        left: `${currentX}%`,
-        top: `${currentY}%`,
+        left: `${liveX}%`,
+        top: `${liveY}%`,
         width: `${box.width}%`,
         height: `${box.height}%`,
-        zIndex: isHovered || isEditing || isDragging ? 35 : 20,
+        zIndex: isHovered || isEditing ? 35 : 20,
+        // Outer wrapper is FULLY TRANSPARENT — the artist's drawn bubble border shows through
+        background: 'transparent',
+        pointerEvents: 'auto',
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onMouseDown={handleMouseDown}
-      className={`manga-bubble-overlay group pointer-events-auto flex items-center justify-center ${
-        isDragging ? 'cursor-grabbing opacity-90' : 'cursor-move'
-      }`}
+      className={`manga-bubble-overlay group ${isDragging.current ? 'cursor-grabbing' : 'cursor-move'}`}
     >
-      {/* Speech Bubble / Dialogue Container - Snug inpainting without massive empty cards */}
+      {/* ====================================================
+          INNER PAINT AREA — covers only the interior of the
+          speech bubble, leaving the artist's drawn border intact
+          ==================================================== */}
       <div
-        className={`flex items-center justify-center p-2 text-center transition-all select-none overflow-hidden ${
-          isHovered ? 'ring-2 ring-indigo-400 shadow-lg' : ''
-        } ${isRect ? 'w-full h-full' : 'w-full'}`}
         style={{
-          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : '#ffffff',
-          color: isDark ? '#ffffff' : '#0a0a0a',
-          borderRadius: isRect ? '6px' : '9999px',
+          position: 'absolute',
+          top: inset,
+          left: inset,
+          right: inset,
+          bottom: inset,
+          background: bgColor,
+          borderRadius: innerBorderRadius,
           border: 'none',
           boxShadow: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+          outline: isHovered ? '1.5px dashed rgba(99,102,241,0.6)' : 'none',
+          outlineOffset: '2px',
           fontFamily: fontFam,
-          // Lens mode: Fits dialogue height snugly so it never blocks character faces below
-          height: isLens && !isRect ? 'fit-content' : '100%',
-          maxHeight: '100%',
-          minHeight: '28px',
         }}
-        onClick={() => !isEditing && !isDragging && setIsEditing(true)}
+        onClick={() => !isEditing && setIsEditing(true)}
       >
         {isEditing ? (
+          /* Edit mode */
           <div
-            className="w-full h-full flex flex-col justify-between p-1 bg-indigo-950 text-white rounded-lg min-h-[70px]"
+            style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '4px', background: '#1e1b4b', borderRadius: '6px' }}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -187,27 +205,31 @@ export default function BubbleOverlay({
               autoFocus
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
-              className="w-full h-full bg-slate-900 text-xs text-white p-1 rounded resize-none outline-none border border-indigo-500 font-sans"
+              style={{ flex: 1, background: '#0f172a', color: '#e2e8f0', fontSize: '11px', padding: '4px', borderRadius: '4px', border: '1px solid #6366f1', resize: 'none', outline: 'none', fontFamily: 'sans-serif' }}
             />
-            <div className="flex justify-end gap-1 mt-1">
-              <button
-                type="button"
-                onClick={handleSaveEdit}
-                className="px-2.5 py-0.5 rounded bg-emerald-600 text-[10px] font-bold text-white hover:bg-emerald-500 flex items-center gap-1"
-              >
-                <Check className="w-3 h-3" />
-                <span>บันทึก</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleSaveEdit}
+              style={{ marginTop: '4px', alignSelf: 'flex-end', padding: '2px 10px', borderRadius: '4px', background: '#16a34a', color: '#fff', fontSize: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+            >
+              <Check style={{ width: 11, height: 11 }} />
+              บันทึก
+            </button>
           </div>
         ) : (
+          /* Read mode — Thai text rendered in-place of the original */
           <p
-            className="font-medium tracking-tight whitespace-pre-line text-center break-words leading-tight"
             style={{
-              fontSize: `${computedFontSize}px`,
-              lineHeight: 1.25,
-              color: isDark ? '#ffffff' : '#0a0a0a',
-              textShadow: isDark ? '0 1px 2px rgba(0,0,0,0.8)' : 'none',
+              fontSize: `${fontSize}px`,
+              lineHeight: 1.28,
+              fontWeight: 600,
+              color: textColor,
+              textAlign: 'center',
+              whiteSpace: 'pre-line',
+              wordBreak: 'break-word',
+              margin: 0,
+              padding: '2px 4px',
+              textShadow: isDark ? '0 1px 3px rgba(0,0,0,0.9)' : 'none',
             }}
           >
             {bubble.thai_translation}
@@ -215,42 +237,64 @@ export default function BubbleOverlay({
         )}
       </div>
 
-      {/* Hover Info Tooltip (Shows original vs Thai, and instructions to drag / edit) */}
-      {isHovered && !isEditing && !isDragging && (
+      {/* ====================================================
+          HOVER TOOLTIP — shows original text, tone, and hints
+          ==================================================== */}
+      {isHovered && !isEditing && (
         <div
-          className="absolute -top-20 left-1/2 -translate-x-1/2 min-w-[240px] max-w-[340px] p-2.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-left text-xs pointer-events-auto z-50 backdrop-blur-md"
+          style={{
+            position: 'absolute',
+            bottom: '110%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            minWidth: '230px',
+            maxWidth: '340px',
+            padding: '10px 12px',
+            borderRadius: '12px',
+            background: 'rgba(2,6,23,0.97)',
+            border: '1px solid rgba(100,116,139,0.5)',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
+            color: '#e2e8f0',
+            fontSize: '11px',
+            textAlign: 'left',
+            zIndex: 60,
+            backdropFilter: 'blur(12px)',
+            pointerEvents: 'auto',
+          }}
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1 border-b border-slate-800 pb-1">
-            <span className="font-semibold text-indigo-400 flex items-center gap-1">
-              <MessageSquare className="w-3 h-3" />
-              {bubble.type.toUpperCase()}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(51,65,85,0.8)', paddingBottom: '6px', marginBottom: '6px' }}>
+            <span style={{ color: '#818cf8', fontWeight: 700, fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <MessageSquare style={{ width: 11, height: 11 }} />
+              {bubble.type?.toUpperCase()}
             </span>
-            <span className="text-slate-400 flex items-center gap-1 text-[9px]">
-              <Move className="w-2.5 h-2.5 text-indigo-400" />
+            {bubble.speaker_tone && (
+              <span style={{ color: '#f472b6', fontSize: '10px', background: 'rgba(88,28,135,0.4)', padding: '1px 6px', borderRadius: '4px' }}>
+                {bubble.speaker_tone}
+              </span>
+            )}
+          </div>
+
+          {bubble.original_text && (
+            <p style={{ color: '#94a3b8', fontSize: '10px', fontStyle: 'italic', marginBottom: '4px' }}>
+              <strong style={{ color: '#64748b' }}>ต้นฉบับ: </strong>
+              {bubble.original_text}
+            </p>
+          )}
+          <p style={{ color: '#f1f5f9', fontSize: '11px' }}>
+            <strong style={{ color: '#34d399' }}>แปลไทย: </strong>
+            {bubble.thai_translation}
+          </p>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(51,65,85,0.6)', paddingTop: '6px', marginTop: '6px', fontSize: '9px', color: '#475569' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <Move style={{ width: 9, height: 9, color: '#818cf8' }} />
               ลากเพื่อย้ายตำแหน่ง
             </span>
-          </div>
-
-          <div className="space-y-1">
-            {bubble.original_text && (
-              <p className="text-[11px] text-slate-400 italic">
-                <span className="text-slate-500 font-bold mr-1">ต้นฉบับ:</span>
-                {bubble.original_text}
-              </p>
-            )}
-            <p className="text-[11px] text-slate-100 font-medium">
-              <span className="text-emerald-400 font-bold mr-1">แปลไทย:</span>
-              {bubble.thai_translation}
-            </p>
-          </div>
-
-          <div className="mt-1.5 pt-1 border-t border-slate-800/80 flex items-center justify-between text-[9px] text-slate-400">
-            <span>คลิกที่บอลลูนเพื่อแก้ไขคำแปล</span>
             <button
               onClick={() => setIsEditing(true)}
-              className="text-indigo-400 hover:text-indigo-300 font-semibold"
+              style={{ color: '#818cf8', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontSize: '9px' }}
             >
               แก้ไขคำแปล
             </button>

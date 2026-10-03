@@ -287,8 +287,8 @@ export default function SettingsModal({
               <option value="gemini-3.8-flash">
                 Gemini 3.8 Flash (โมเดลตัวท็อปความเร็วและ OCR)
               </option>
-              <option value="gemini-3.1-pro">
-                Gemini 3.1 Pro (โมเดล Pro สำหรับหน้าซับซ้อน เล่นคำ บทกวี)
+              <option value="gemini-2.0-flash">
+                Gemini 2.0 Flash (โมเดลสำรอง เสถียรสูง)
               </option>
             </select>
           </div>

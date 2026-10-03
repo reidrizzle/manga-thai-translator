@@ -26,7 +26,7 @@ export async function POST(request) {
     const ALLOWED = [
       'gemini-2.5-flash',
       'gemini-3.8-flash',
-      'gemini-3.1-pro',
+      'gemini-2.0-flash',
     ];
     const preferred = ALLOWED.includes(modelName) ? modelName : 'gemini-2.5-flash';
     const candidates = Array.from(new Set([preferred, ...ALLOWED]));

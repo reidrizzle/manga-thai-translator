@@ -164,11 +164,12 @@ Output JSON only.
     },
   };
 
-  // Candidate models restricted strictly to 2.5 Flash, 3.8 Flash, and 3.1 Pro (3.5 Flash removed as requested)
+  // Available models: 2.5 Flash (primary), 3.8 Flash (fast OCR), 2.0 Flash (stable fallback)
+  // Note: gemini-3.1-pro removed — it returned 404 not found on v1beta
   const ALLOWED_MODELS = [
     'gemini-2.5-flash',
     'gemini-3.8-flash',
-    'gemini-3.1-pro',
+    'gemini-2.0-flash',
   ];
 
   const preferredModel = ALLOWED_MODELS.includes(modelName)
