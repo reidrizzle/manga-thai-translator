@@ -43,12 +43,10 @@ export default function HomePage() {
       const ALLOWED_MODELS = [
         'gemini-3.8-flash',
         'gemini-2.5-flash',
-        'gemini-2.5-flash-8b',
       ];
       if (savedModel && ALLOWED_MODELS.includes(savedModel)) {
         setModelName(savedModel);
       } else {
-        // Reset to gemini-3.8-flash for any deprecated/invalid stored model
         setModelName('gemini-3.8-flash');
         localStorage.setItem('manga_gemini_model', 'gemini-3.8-flash');
       }

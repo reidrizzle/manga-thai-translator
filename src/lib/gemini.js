@@ -16,16 +16,17 @@ Rules for Thai Comic Typesetting & Localization:
 2. Use authentic Thai comic dialog particles appropriately (เช่น "วะ", "โว้ย", "สิ", "น่า", "หืม?", "เอ๊ะ!", "บ้าเอ๊ย!", "ชิ!") matching character personality.
 3. CRITICAL RULE FOR SOUND EFFECTS (SFX): STRICTLY DO NOT detect or extract ambient background sound effects (SFX) that are hand-drawn across the background, characters, or faces (เช่น 흠칫, 띠링, 쿵, 쾅, サッ, ドン, แกรก, ฟึ่บ). DO NOT create overlays for loose sound effects!
 4. ONLY extract text inside actual speech bubbles (บอลลูนคำพูด), thought bubbles, narration panels, and game status UI windows (หน้าต่างสถานะ/ระบบเกม).
-5. PRECISE BOUNDING BOXES: Detect the EXACT 2D coordinates [ymin, xmin, ymax, xmax] normalized on a 0 to 1000 integer scale:
-   - ymin: top edge of the text bubble (0-1000)
-   - xmin: left edge of the text bubble (0-1000)
-   - ymax: bottom edge of the text bubble (0-1000)
-   - xmax: right edge of the text bubble (0-1000)
-   CRITICAL: The box must be TIGHT around the speech bubble containing the dialogue. DO NOT encompass empty space, entire panels, or artwork!
-6. Provide natural Thai line breaks (\\n) in "thai_translation" if the text is multi-line to fit the shape of the speech bubble naturally (เช่น "ก่อนอื่น มาดู\\nสกิลของฉันก่อน" หรือ "แล้วนี่\\nมันอะไร?").
-7. Detect background color type ("bg_color": "white" for standard speech bubbles, "dark" for blue/black game status windows or dark night narration boxes) and text color ("text_color": "black" or "white").
+5. PRECISE BOUNDING BOXES — This is CRITICAL for the overlay to appear in exactly the right place:
+   Return [ymin, xmin, ymax, xmax] as integers on a 0–1000 scale representing the FULL INTERIOR of the bubble/box (not just the text, the full white area inside the bubble border).
+   - For speech bubbles: box must cover the ENTIRE white interior area including padding, not just the text characters.
+   - For narration boxes: box must cover the FULL rectangle of the narration area edge-to-edge.
+   - NEVER make a box smaller than the actual visible white area of the bubble interior.
+   - DO NOT encompass empty space outside the bubble, entire panels, or artwork.
+6. Provide natural Thai line breaks (\\n) in "thai_translation" to fit the bubble shape (เช่น "ก่อนอื่น มาดู\\nสกิลของฉันก่อน").
+7. Detect background color ("bg_color": "white" for standard speech bubbles, "dark" for dark UI/narration boxes) and text color ("text_color": "black" or "white").
+8. "font_size_hint": estimate the original font size relative to bubble area as "small", "medium", or "large" so the overlay can match it.
 
-Return your response strictly in valid JSON matching this schema:
+Return strictly valid JSON matching this schema:
 {
   "page_summary": "Brief 1-sentence description of the scene context",
   "bubbles": [
@@ -35,6 +36,7 @@ Return your response strictly in valid JSON matching this schema:
       "shape": "bubble" | "rect",
       "bg_color": "white" | "dark",
       "text_color": "black" | "white",
+      "font_size_hint": "small" | "medium" | "large",
       "box_2d": [ymin, xmin, ymax, xmax],
       "original_text": "Original dialogue text",
       "thai_translation": "บทแปลภาษาไทยที่ลื่นไหล ตัดบรรทัดด้วย \\n อย่างเป็นธรรมชาติ",
@@ -165,11 +167,12 @@ Output JSON only.
   };
 
   // ⚡ Current Gemini Free Tier models (Oct 2026)
-  // Priority: 3.8-flash (latest GA) → 2.5-flash (stable) → 2.5-flash-8b (lightest, lowest load)
+  // gemini-3.8-flash = GA, confirmed working
+  // gemini-2.5-flash = stable fallback
+  // gemini-2.5-flash-8b REMOVED — returns 404 on v1beta
   const ALLOWED_MODELS = [
     'gemini-3.8-flash',
     'gemini-2.5-flash',
-    'gemini-2.5-flash-8b', // lightweight, lower server load — best for 503 fallback
   ];
 
   const preferredModel = ALLOWED_MODELS.includes(modelName)
@@ -317,12 +320,11 @@ Output JSON only.
       }
     }
 
-    // Safety constraints:
-    // Speech bubbles must never exceed 22% of image height to prevent massive white blocks.
-    width = Math.max(8, Math.min(88, Number(width) || 28));
-    height = Math.max(3.5, Math.min(22, Number(height) || 10));
-    x = Math.max(1, Math.min(94, Number(x) || 15));
-    y = Math.max(1, Math.min(95, Number(y) || 15));
+    // Clamp to valid percentage range — allow tall narration boxes (up to 60% height)
+    width  = Math.max(5,   Math.min(92, Number(width)  || 28));
+    height = Math.max(3,   Math.min(60, Number(height) || 10));  // was 22 — now allows narration boxes
+    x      = Math.max(0.5, Math.min(94, Number(x)      || 15));
+    y      = Math.max(0.5, Math.min(96, Number(y)      || 15));
 
     const type = b.type || 'speech';
     const isDarkBg =
@@ -336,15 +338,16 @@ Output JSON only.
       shape: b.shape || (type === 'narration' || type === 'system' ? 'rect' : 'bubble'),
       bg_color: isDarkBg ? 'dark' : (b.bg_color || 'white'),
       text_color: b.text_color || (isDarkBg ? 'white' : 'black'),
+      font_size_hint: b.font_size_hint || 'medium',
       box: {
         x: Number(x.toFixed(2)),
         y: Number(y.toFixed(2)),
-        width: Number(width.toFixed(2)),
+        width:  Number(width.toFixed(2)),
         height: Number(height.toFixed(2)),
       },
-      original_text: b.original_text || b.text || b.original || '',
-      thai_translation: b.thai_translation || b.translation || b.thai || '',
-      speaker_tone: b.speaker_tone || b.tone || '',
+      original_text:   b.original_text   || b.text        || b.original || '',
+      thai_translation: b.thai_translation || b.translation || b.thai     || '',
+      speaker_tone:    b.speaker_tone     || b.tone        || '',
     };
   });
 
