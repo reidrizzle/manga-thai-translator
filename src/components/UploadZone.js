@@ -24,6 +24,7 @@ export default function UploadZone({
   onOpenReader,
   isTranslating,
   onLoadSample,
+  onFilesAdded,
 }) {
   const fileInputRef = useRef(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -65,6 +66,9 @@ export default function UploadZone({
 
     if (newPages.length > 0) {
       setPages((prev) => [...prev, ...newPages]);
+      if (onFilesAdded) {
+        onFilesAdded(newPages);
+      }
     }
   };
 

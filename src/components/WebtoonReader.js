@@ -326,6 +326,16 @@ export default function WebtoonReader({
               loading={pageIndex < 3 ? 'eager' : 'lazy'}
             />
 
+            {/* Visual Scanning / Translating Indicator Overlay */}
+            {page.status === 'translating' && (
+              <div className="absolute inset-0 bg-slate-950/30 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3 z-30 transition-all pointer-events-none">
+                <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-indigo-950/95 border border-indigo-500/70 shadow-2xl text-white text-xs font-bold animate-pulse">
+                  <Loader2 className="w-4 h-4 animate-spin text-pink-400" />
+                  <span>🔍 กำลังอ่านข้อความ (OCR) และแปลไทยแทนที่...</span>
+                </div>
+              </div>
+            )}
+
             {/* In-Image Speech Bubble Overlays */}
             {page.bubbles &&
               page.bubbles.map((bubble) => (

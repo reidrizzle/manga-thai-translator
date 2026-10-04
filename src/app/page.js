@@ -159,15 +159,16 @@ export default function HomePage() {
   };
 
   // Start Batch Translation (supports real Gemini API key or 'demo' mode)
-  const handleStartTranslateAll = async (overrideKey = null) => {
+  const handleStartTranslateAll = async (overrideKey = null, targetPages = null) => {
     const activeKey = overrideKey || apiKey;
+    const listToTranslate = targetPages || pages;
     setGlobalError('');
     setIsTranslating(true);
     let hasTranslatedAtLeastOne = false;
 
-    for (let i = 0; i < pages.length; i++) {
+    for (let i = 0; i < listToTranslate.length; i++) {
       setCurrentTranslateIndex(i);
-      const currentPage = pages[i];
+      const currentPage = listToTranslate[i];
       const targetPageId = currentPage.id;
 
       // Delay 2 seconds between pages to respect Free Tier Rate Limits (15 RPM)
@@ -327,6 +328,13 @@ export default function HomePage() {
               onOpenReader={() => setActiveView('reader')}
               isTranslating={isTranslating}
               onLoadSample={handleLoadSample}
+              onFilesAdded={(newPages) => {
+                setActiveView('reader');
+                const allPages = [...pages, ...newPages];
+                setTimeout(() => {
+                  handleStartTranslateAll(null, allPages);
+                }, 120);
+              }}
             />
 
             {/* Quick Switch to Reader - Always visible when pages are uploaded */}
