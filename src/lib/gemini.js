@@ -20,22 +20,23 @@ COMMON FALSE POSITIVES TO AVOID:
 - White clothing, walls, or objects in the scene → NOT a bubble
 - Any area where original_text would be empty or blank → DO NOT include
 
-WHAT TO DETECT:
-✓ Speech bubbles with visible dialogue text inside (the round/oval shapes with text)
-✓ Thought bubbles (cloud-like shapes with text)
-✓ Narration boxes/caption boxes that contain printed story text
+WHAT TO DETECT (Scan the entire page thoroughly from TOP to BOTTOM):
+✓ Narration boxes and caption rectangles (at top, middle, and bottom of the page)
+✓ Every dialogue speech bubble (including shouts, whispers, and short expressions like "...!!", "K-KUHK...", "??", "HMM...")
+✓ Thought bubbles
 ✓ System UI windows (game status panels) with text
+Do NOT skip any narration boxes or speech bubbles!
 
 TRANSLATION QUALITY:
 - Produce NATURAL, VIBRANT Thai translations (ภาษาไม่แข็งกระด้าง ลื่นไหล เข้าปากคนไทย) matching published Thai Webtoon quality.
 - Use authentic Thai comic particles (วะ, โว้ย, สิ, น่า, หืม?, เอ๊ะ!, บ้าเอ๊ย!, ชิ!) matching character personality.
-- DO NOT include hand-drawn SFX (เช่น 흠칫, 띠링, 쿵, 쾅, サッ, ドン) that are drawn across artwork/faces.
-- Provide natural Thai line breaks (\\n) in thai_translation.
+- Provide natural Thai line breaks (\n) in thai_translation.
 
 BOUNDING BOX RULES:
 - Return box_2d as [ymin, xmin, ymax, xmax] integers strictly on the 0–1000 scale (0 = top/left 0%, 1000 = bottom/right 100%).
 - ymin is top edge, xmin is left edge, ymax is bottom edge, xmax is right edge.
-- The box must tightly wrap the dialogue text or narration box.
+- The box must cover the FULL INTERIOR area of the speech bubble or narration box (the entire white area with padding).
+- For rectangular narration boxes: cover the full printed box edge-to-edge.
 - NEVER include a box for an area with no readable text characters.
 
 Return ONLY valid JSON:
@@ -301,11 +302,6 @@ Output JSON only.
     // Must have original text — if empty, the AI detected blank paper, not a speech bubble
     const origText = (b.original_text || b.text || b.original || '').trim();
     if (origText.length < 1) return false;
-
-    const type = (b.type || '').toLowerCase();
-    if (type === 'sfx') return false;
-    const tone = (b.speaker_tone || '').toLowerCase();
-    if (tone.includes('sfx') || tone.includes('sound')) return false;
     return true;
   });
 

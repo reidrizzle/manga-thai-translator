@@ -97,55 +97,47 @@ export default function BubbleOverlay({
     bubble.bg_color === 'dark' ||
     bubble.type === 'system';
 
-  const renderMode = bubbleStyle.renderMode || 'lens';
+  const renderMode = bubbleStyle.renderMode || 'patch';
 
-  // In 'lens' mode (default): completely transparent box ("กล่องใส ไม่บังภาพ")
-  // In 'patch' mode: subtle opaque fill with rounded corners to erase previous text
+  // In 'patch' mode (default): seamlessly paint over the original text with matching comic bubble white/dark
+  // In 'lens' mode: soft frosted glass
   const isLens = renderMode === 'lens';
   const bgFill = isLens
-    ? 'transparent'
-    : isDark
-    ? 'rgba(15, 23, 42, 0.96)'
-    : 'rgba(255, 255, 255, 0.97)';
+    ? (isDark ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.92)')
+    : (isDark ? '#0f172a' : '#ffffff');
 
-  const textFill = isDark ? '#ffffff' : '#000000';
+  const textFill = isDark ? '#ffffff' : '#0a0a0a';
 
-  // Thai comic text stroke / shadow for maximum legibility in transparent lens mode
-  const textShadow = isLens
-    ? isDark
-      ? '0 0 3px #000, 0 0 6px #000, 0 0 10px #000, 0 1px 2px #000'
-      : '0 0 3px #ffffff, 0 0 6px #ffffff, 0 0 10px #ffffff, 0 1px 2px #ffffff'
-    : isDark
+  const textShadow = isDark
     ? '0 1px 2px rgba(0,0,0,0.8)'
-    : 'none';
+    : (isLens ? '0 0 2px #fff' : 'none');
 
-  const borderRadius = isRect ? '4px' : '22px';
+  // Pill / oval shape for speech bubbles to blend into native bubble curves; rect for narration
+  const borderRadius = isRect ? '3px' : '9999px';
 
-  // === FONT SIZING — readable comic book lettering ===
+  // === FONT SIZING — authentic, bold, readable comic book lettering ===
   const hint = bubble.font_size_hint || 'medium';
   const userScale = bubbleStyle.fontSizeScale || 1;
   const text = bubble.thai_translation || '';
   const charCount = text.replace(/\n/g, '').length || 1;
 
-  let baseSize = 16.5; // standard comic dialog size
+  let baseSize = 17; // standard comic dialog size
   if (hint === 'large') baseSize = 22;
-  else if (hint === 'small') baseSize = 13.5;
-  else if (bubble.type === 'narration' || bubble.type === 'system') baseSize = 15;
+  else if (hint === 'small') baseSize = 14;
+  else if (bubble.type === 'narration' || bubble.type === 'system') baseSize = 15.5;
 
-  if (charCount > 75) baseSize -= 2.5;
-  else if (charCount > 40) baseSize -= 1.5;
-  else if (charCount < 10 && hint !== 'small') baseSize += 1.5;
+  if (charCount > 70) baseSize -= 2;
+  else if (charCount < 12 && hint !== 'small') baseSize += 2;
 
-  const fontSize = Math.round(Math.max(13, Math.min(26, baseSize)) * userScale);
+  const fontSize = Math.round(Math.max(14, Math.min(26, baseSize)) * userScale);
 
   const fontFam =
     bubbleStyle.fontFamily ||
     'var(--font-mitr), var(--font-prompt), "Mitr", "Prompt", sans-serif';
 
-  // Bold for speech/thought, medium for narration
-  const fontWeight = (bubble.type === 'narration' || bubble.type === 'system') ? 500 : 700;
-
-  const lineHeight = fontSize <= 14 ? 1.3 : 1.25;
+  // Bold comic dialogue lettering
+  const fontWeight = 700;
+  const lineHeight = 1.3;
 
   const liveX = Math.max(0, Math.min(95, box.x + dragDelta.x));
   const liveY = Math.max(0, Math.min(96, box.y + dragDelta.y));
@@ -154,23 +146,24 @@ export default function BubbleOverlay({
     <div
       ref={overlayRef}
       style={{
-        position: 'absolute',
-        left:   `${liveX}%`,
-        top:    `${liveY}%`,
-        width:  `${box.width}%`,
-        height: `${box.height}%`,
-        zIndex: isHovered || isEditing ? 35 : 20,
+        position:   'absolute',
+        left:       `${liveX}%`,
+        top:        `${liveY}%`,
+        width:      `${box.width}%`,
+        minHeight:  `${box.height}%`,
+        height:     'auto',
+        zIndex:     isHovered || isEditing ? 35 : 20,
         background: bgFill,
         borderRadius,
-        boxSizing: 'border-box',
-        padding: '2px 4px',
-        outline: isHovered ? '1.5px dashed rgba(99,102,241,0.7)' : 'none',
+        boxSizing:  'border-box',
+        padding:    isRect ? '4px 6px' : '4px 8px',
+        outline:    isHovered ? '1.5px dashed rgba(99,102,241,0.7)' : 'none',
         outlineOffset: '2px',
-        cursor: isDragging.current ? 'grabbing' : 'move',
-        display: 'flex',
+        cursor:     isDragging.current ? 'grabbing' : 'move',
+        display:    'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        overflow: 'hidden',
+        overflow:   'visible',
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}

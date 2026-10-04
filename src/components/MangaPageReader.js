@@ -78,7 +78,7 @@ export default function MangaPageReader({
     }
   };
 
-  const [renderMode, setRenderMode] = useState('lens');
+  const [renderMode, setRenderMode] = useState('patch');
   const [hideSfx, setHideSfx] = useState(true);
 
   const bubbleStyle = {
@@ -162,16 +162,16 @@ export default function MangaPageReader({
             </span>
           </button>
 
-          {/* Style Mode: Lens (กล่องใส ไม่บังภาพ) vs Patch (ปิดทับข้อความเดิม) */}
+          {/* Style Mode: Patch (เนียนเหมือนต้นฉบับ) vs Lens (กล่องใส) */}
           <button
             type="button"
-            onClick={() => setRenderMode(renderMode === 'lens' ? 'patch' : 'lens')}
+            onClick={() => setRenderMode(renderMode === 'patch' ? 'lens' : 'patch')}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all"
-            title="สลับสไตล์การแสดงผล: กล่องใส (ไม่บังภาพ) / ปิดทับ"
+            title="สลับสไตล์การแสดงผล: เนียนเหมือนต้นฉบับ / กล่องใส"
           >
             <Layers className="w-3.5 h-3.5 text-cyan-400" />
             <span className="hidden sm:inline">
-              {renderMode === 'lens' ? 'กล่องใส (Lens)' : 'ปิดทับ (Patch)'}
+              {renderMode === 'patch' ? 'เนียนเหมือนต้นฉบับ (Patch)' : 'กล่องใส (Lens)'}
             </span>
           </button>
 
