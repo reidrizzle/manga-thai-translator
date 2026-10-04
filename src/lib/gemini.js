@@ -32,11 +32,13 @@ TRANSLATION QUALITY:
 - Use authentic Thai comic particles (วะ, โว้ย, สิ, น่า, หืม?, เอ๊ะ!, บ้าเอ๊ย!, ชิ!) matching character personality.
 - Provide natural Thai line breaks (\n) in thai_translation.
 
-BOUNDING BOX RULES:
-- Return box_2d as [ymin, xmin, ymax, xmax] integers strictly on the 0–1000 scale (0 = top/left 0%, 1000 = bottom/right 100%).
-- ymin is top edge, xmin is left edge, ymax is bottom edge, xmax is right edge.
-- The box must cover the FULL INTERIOR area of the speech bubble or narration box (the entire white area with padding).
-- For rectangular narration boxes: cover the full printed box edge-to-edge.
+BOUNDING BOX RULES (Percentages 0–100% of the entire image):
+- Return "box" as an object with:
+  "top": distance from top of image in percent (0 to 100)
+  "left": distance from left edge of image in percent (0 to 100)
+  "width": width of bubble/box in percent (0 to 100)
+  "height": height of bubble/box in percent (0 to 100)
+- The box must cover the full interior of the bubble or narration rectangle so it cleanly replaces the original text.
 - NEVER include a box for an area with no readable text characters.
 
 Return ONLY valid JSON:
@@ -50,7 +52,12 @@ Return ONLY valid JSON:
       "bg_color": "white" | "dark",
       "text_color": "black" | "white",
       "font_size_hint": "small" | "medium" | "large",
-      "box_2d": [ymin, xmin, ymax, xmax],
+      "box": {
+        "top": 12.0,
+        "left": 40.0,
+        "width": 44.0,
+        "height": 9.0
+      },
       "original_text": "Exact text you can READ from the bubble",
       "thai_translation": "คำแปลภาษาไทยที่ลื่นไหล",
       "speaker_tone": "confident | whispering | furious | confused | mocking | system_alert"
@@ -170,7 +177,7 @@ Tone Mode: ${tonePreset}
 
 Now, carefully inspect this manga/manhwa page image. Locate every speech bubble, text box, and narration following the specific reading flow direction.
 Translate every bubble into natural, colloquial Thai that sounds like authentic Thai comic publications.
-Return box_2d coordinates [ymin, xmin, ymax, xmax] integers strictly on the 0-1000 scale.
+Return box coordinates (top, left, width, height as percentages 0-100%).
 Output JSON only.
 `;
 
@@ -325,8 +332,24 @@ Output JSON only.
   const normalizedBubbles = dialogueOnly.map((b, idx) => {
     let x = 15, y = 15, width = 30, height = 8;
 
-    // Standard Gemini 2D Object Detection: [ymin, xmin, ymax, xmax] (0-1000 scale)
-    if (Array.isArray(b.box_2d) && b.box_2d.length === 4) {
+    // 1. Standard Box Object: { top, left, width, height } or { x, y, width, height }
+    if (b.box && typeof b.box === 'object' && !Array.isArray(b.box)) {
+      const rawTop = b.box.top ?? b.box.y ?? b.box.ymin;
+      const rawLeft = b.box.left ?? b.box.x ?? b.box.xmin;
+      const rawW = b.box.width ?? b.box.w;
+      const rawH = b.box.height ?? b.box.h ?? (b.box.ymax !== undefined ? Number(b.box.ymax) - Number(rawTop) : undefined);
+
+      if (rawTop !== undefined && rawLeft !== undefined) {
+        const topNum = Number(rawTop);
+        const leftNum = Number(rawLeft);
+        const div = (is1000Scale || topNum > 100 || leftNum > 100) ? 10 : 1;
+        x = leftNum / div;
+        y = topNum / div;
+        width = rawW !== undefined ? Number(rawW) / div : 28;
+        height = rawH !== undefined ? Number(rawH) / div : 8;
+      }
+    } else if (Array.isArray(b.box_2d) && b.box_2d.length === 4) {
+      // 2. Standard Gemini 2D Object Detection: [ymin, xmin, ymax, xmax] (0-1000 scale)
       const [y1Raw, x1Raw, y2Raw, x2Raw] = b.box_2d.map(Number);
       const ymin = Math.min(y1Raw, y2Raw);
       const ymax = Math.max(y1Raw, y2Raw);
@@ -350,32 +373,10 @@ Output JSON only.
       y = ymin / div;
       width = (xmax - xmin) / div;
       height = (ymax - ymin) / div;
-    } else if (b.box && typeof b.box === 'object') {
-      if (b.box.ymin !== undefined && b.box.xmin !== undefined) {
-        const ymin = Math.min(Number(b.box.ymin), Number(b.box.ymax));
-        const ymax = Math.max(Number(b.box.ymin), Number(b.box.ymax));
-        const xmin = Math.min(Number(b.box.xmin), Number(b.box.xmax));
-        const xmax = Math.max(Number(b.box.xmin), Number(b.box.xmax));
-        const div = (is1000Scale || ymax > 100 || xmax > 100) ? 10 : 1;
-        x = xmin / div;
-        y = ymin / div;
-        width = (xmax - xmin) / div;
-        height = (ymax - ymin) / div;
-      } else if (b.box.x !== undefined && b.box.y !== undefined) {
-        const bx = Number(b.box.x);
-        const by = Number(b.box.y);
-        const bw = Number(b.box.width || b.box.w || 28);
-        const bh = Number(b.box.height || b.box.h || 8);
-        const div = (is1000Scale || bx > 100 || by > 100 || bw > 100 || bh > 100) ? 10 : 1;
-        x = bx / div;
-        y = by / div;
-        width = bw / div;
-        height = bh / div;
-      }
     }
 
     // Clamp to valid percentage range — allow webtoon small heights and tall narration
-    width  = Math.max(3,   Math.min(96, Number(width)  || 25));
+    width  = Math.max(4,   Math.min(95, Number(width)  || 25));
     height = Math.max(1.2, Math.min(70, Number(height) || 6));
     x      = Math.max(0.2, Math.min(97, Number(x)      || 10));
     y      = Math.max(0.2, Math.min(98, Number(y)      || 10));
