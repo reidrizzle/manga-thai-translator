@@ -233,42 +233,52 @@ Output JSON only.
 
         const is503 = err.message.includes('503') || err.message.includes('Service Unavailable') || err.message.includes('high demand');
         const is404 = err.message.includes('404') || err.message.includes('not found');
+        const is429 = err.message.includes('429') || err.message.includes('Too Many Requests') || err.message.includes('RESOURCE_EXHAUSTED') || err.message.includes('quota');
 
         if (is404) {
-          // Model doesn't exist — no point retrying, skip to next
           console.warn(`⚠️ ${candidate} returned 404 — skipping to next model`);
           break;
         }
 
+        if (is429) {
+          // Quota exhausted for this model — skip immediately (retrying won't help)
+          console.warn(`🚫 ${candidate} quota exceeded (429) — skipping to next model`);
+          break;
+        }
+
         if (is503 && attempt === 1) {
-          // First 503 on this model → wait 2s then retry same model once
           console.warn(`⏳ ${candidate} is overloaded (503). Waiting 2s before retry...`);
           await sleep(2000);
           continue;
         }
 
-        // Any other error or 2nd attempt failed → try next model
         console.warn(`⚠️ ${candidate} attempt ${attempt} failed (${err.message.slice(0, 80)}). Trying next model...`);
         break;
       }
     }
-    if (rawText) break; // outer loop — stop if a model succeeded
+    if (rawText) break;
   }
 
   if (!rawText) {
-    // All models failed — provide a human-friendly error with retry suggestion
-    const isOverload =
-      lastError?.message?.includes('503') ||
-      lastError?.message?.includes('high demand') ||
-      lastError?.message?.includes('Service Unavailable');
+    const msg = lastError?.message || '';
+    const isQuota = msg.includes('429') || msg.includes('Too Many Requests') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota');
+    const isOverload = msg.includes('503') || msg.includes('high demand') || msg.includes('Service Unavailable');
 
-    if (isOverload) {
+    if (isQuota) {
       throw new Error(
-        '⚠️ เซิร์ฟเวอร์ Gemini โหลดสูงทุกโมเดล กรุณารอ 30 วินาที แล้วกดแปลใหม่อีกครั้ง'
+        '🚫 โควตาฟรีของ Gemini หมดแล้ว (จำกัด 20 ครั้ง/วัน/โมเดล)\n\n' +
+        'วิธีแก้:\n' +
+        '• รอ ~20 ชั่วโมง แล้วกดแปลใหม่ (โควตาจะ reset อัตโนมัติ)\n' +
+        '• หรือสร้าง API Key ใหม่ใน Google AI Studio (ใช้ Gmail อื่น)\n' +
+        '• หรืออัพเกรดเป็น Gemini API Paid Tier ที่ aistudio.google.com'
       );
+    }
+    if (isOverload) {
+      throw new Error('⚠️ เซิร์ฟเวอร์ Gemini โหลดสูงทุกโมเดล กรุณารอ 30 วินาที แล้วกดแปลใหม่อีกครั้ง');
     }
     throw lastError || new Error('ทุกโมเดลของ Gemini ไม่สามารถประมวลผลได้');
   }
+
 
 
   const data = extractJson(rawText);
