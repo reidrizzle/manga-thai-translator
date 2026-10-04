@@ -159,15 +159,23 @@ export default function WebtoonReader({
 
         <div className="h-4 w-px bg-slate-700 hidden sm:block" />
 
-        {/* Style Mode: Patch (ลบทับข้อความเดิมเหมือนต้นฉบับ) vs Lens (กล่องใส) */}
+        {/* Style Mode: Patch (ลบทับข้อความเดิมเหมือนต้นฉบับ) vs Lens (กล่องใส) vs Transparent (โปร่งใส) */}
         <button
           type="button"
-          onClick={() => setRenderMode(renderMode === 'patch' ? 'lens' : 'patch')}
+          onClick={() => {
+            if (renderMode === 'patch') setRenderMode('lens');
+            else if (renderMode === 'lens') setRenderMode('transparent');
+            else setRenderMode('patch');
+          }}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all"
-          title="สลับสไตล์การแสดงผล: เนียนเหมือนต้นฉบับ / กล่องใส"
+          title="สลับสไตล์กล่องข้อความ: เนียนต้นฉบับ / กล่องใสโปร่งแสง / โปร่งใสไร้กล่อง"
         >
           <Layers className="w-3.5 h-3.5 text-cyan-400" />
-          <span>{renderMode === 'patch' ? 'เนียนเหมือนต้นฉบับ (Patch)' : 'กล่องใส (Lens)'}</span>
+          <span>
+            {renderMode === 'patch' && 'กล่องเนียน (Patch)'}
+            {renderMode === 'lens' && 'กล่องใส (Lens)'}
+            {renderMode === 'transparent' && 'โปร่งใส (Clear)'}
+          </span>
         </button>
 
         {/* Hide SFX Toggle (ซ่อนเสียงประกอบไม่ให้บังหน้า) */}

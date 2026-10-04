@@ -6,31 +6,32 @@ import {
 
 /**
  * System prompt crafted specifically for professional, natural Thai Manga/Manhwa translation
+ * Using Google's native box_2d [ymin, xmin, ymax, xmax] detection for pixel-perfect alignment.
  */
 const SYSTEM_PROMPT = `
-You are a professional Manga/Manhwa/Webtoon translator and typesetter localizing into Thai.
+You are a professional Manga/Manhwa/Webtoon OCR, typesetter, and Thai localization specialist.
 
-CRITICAL RULES — READ CAREFULLY:
-1. ONLY include speech bubbles or narration boxes that contain ACTUAL DIALOGUE OR NARRATION TEXT written in the original comic language (English/Japanese/Korean).
-2. DO NOT detect blank drawing paper, sketchbooks, canvas, tables, walls, clothes, or characters' bodies as bubbles!
-3. DO NOT hallucinate or invent text that is not written in the comic.
-4. DO NOT translate or output bubbles that only contain punctuation marks (e.g. "...!!", "??", "!", "..."). Let the original comic sound/emotion drawings stay untouched!
-5. "original_text" MUST be the exact words read from the bubble in the source language. It must NEVER be Thai!
+CRITICAL BOUNDING BOX DETECTION (USE Google box_2d):
+Detect every dialogue speech bubble and narration box that contains readable text.
+For every bubble or box, you MUST output "box_2d" as an array of 4 integers:
+  "box_2d": [ymin, xmin, ymax, xmax]
+- Values must be integers normalized to [0, 1000] relative to the image dimensions:
+  ymin = top edge (0 to 1000)
+  xmin = left edge (0 to 1000)
+  ymax = bottom edge (0 to 1000)
+  xmax = right edge (0 to 1000)
+- TIGHT BOUNDS: The box must accurately and tightly surround the speech bubble or narration rectangle. DO NOT place it outside the bubble or include character art!
 
-WHAT TO DETECT (Scan from TOP to BOTTOM):
-✓ Real dialogue speech bubbles with actual spoken words
-✓ Real narration rectangles and caption boxes with narration text
-✓ Thought bubbles containing actual character thoughts
+CRITICAL TRANSLATION & FILTERING RULES:
+1. ONLY detect areas containing actual comic dialogue, speech bubbles, character thoughts, or narration boxes in the original source language.
+2. DO NOT detect blank canvas, drawing paper, sketchbooks, character bodies, clothing, or furniture as bubbles!
+3. DO NOT output bubbles that only contain punctuation marks (e.g. "...!!", "??", "!", "..."). Let comic sound/emotion drawings stay untouched!
+4. "original_text" MUST be the exact words read from the comic in the source language. It must NEVER be Thai!
+5. "thai_translation" MUST be natural, punchy, colloquial Thai dialogue suitable for Thai comic publications. Avoid robotic or stiff literal translations.
 
-BOUNDING BOX RULES (Percentages 0–100% of the entire image):
-- "top": distance from top of image in percent (0 to 100)
-- "left": distance from left edge of image in percent (0 to 100)
-- "width": width of the text bubble/box in percent (0 to 100)
-- "height": height of the text bubble/box in percent (0 to 100). Keep height tight to the text area (typically 4% to 10% in webtoons). DO NOT make it taller than the bubble!
-
-Return ONLY valid JSON:
+OUTPUT JSON FORMAT (JSON ONLY, no markdown fences):
 {
-  "page_summary": "1-sentence scene description",
+  "page_summary": "1-sentence scene summary",
   "bubbles": [
     {
       "id": 1,
@@ -39,15 +40,10 @@ Return ONLY valid JSON:
       "bg_color": "white" | "dark",
       "text_color": "black" | "white",
       "font_size_hint": "small" | "medium" | "large",
-      "box": {
-        "top": 54.9,
-        "left": 38.7,
-        "width": 44.4,
-        "height": 7.2
-      },
-      "original_text": "Exact text in source language (NOT Thai)",
+      "box_2d": [ymin, xmin, ymax, xmax],
+      "original_text": "Exact text in comic source language",
       "thai_translation": "คำแปลภาษาไทยที่กระชับและลื่นไหล",
-      "speaker_tone": "confident | whispering | furious | confused | mocking"
+      "speaker_tone": "confident | whispering | furious | confused | playful"
     }
   ]
 }
@@ -162,7 +158,7 @@ Tone Mode: ${tonePreset}
 
 Now, carefully inspect this manga/manhwa page image. Locate every speech bubble, text box, and narration following the specific reading flow direction.
 Translate every bubble into natural, colloquial Thai that sounds like authentic Thai comic publications.
-Return box coordinates (top, left, width, height as percentages 0-100%).
+Output box_2d: [ymin, xmin, ymax, xmax] coordinates normalized to [0, 1000] for each bubble/box.
 Output JSON only.
 `;
 
@@ -330,24 +326,8 @@ Output JSON only.
   const normalizedBubbles = dialogueOnly.map((b, idx) => {
     let x = 15, y = 15, width = 30, height = 8;
 
-    // 1. Standard Box Object: { top, left, width, height } or { x, y, width, height }
-    if (b.box && typeof b.box === 'object' && !Array.isArray(b.box)) {
-      const rawTop = b.box.top ?? b.box.y ?? b.box.ymin;
-      const rawLeft = b.box.left ?? b.box.x ?? b.box.xmin;
-      const rawW = b.box.width ?? b.box.w;
-      const rawH = b.box.height ?? b.box.h ?? (b.box.ymax !== undefined ? Number(b.box.ymax) - Number(rawTop) : undefined);
-
-      if (rawTop !== undefined && rawLeft !== undefined) {
-        const topNum = Number(rawTop);
-        const leftNum = Number(rawLeft);
-        const div = (is1000Scale || topNum > 100 || leftNum > 100) ? 10 : 1;
-        x = leftNum / div;
-        y = topNum / div;
-        width = rawW !== undefined ? Number(rawW) / div : 28;
-        height = rawH !== undefined ? Number(rawH) / div : 8;
-      }
-    } else if (Array.isArray(b.box_2d) && b.box_2d.length === 4) {
-      // 2. Standard Gemini 2D Object Detection: [ymin, xmin, ymax, xmax] (0-1000 scale)
+    // 1. Primary & Native: Gemini 2D Object Detection box_2d: [ymin, xmin, ymax, xmax] (0-1000 scale)
+    if (Array.isArray(b.box_2d) && b.box_2d.length === 4) {
       const [y1Raw, x1Raw, y2Raw, x2Raw] = b.box_2d.map(Number);
       const ymin = Math.min(y1Raw, y2Raw);
       const ymax = Math.max(y1Raw, y2Raw);
@@ -371,11 +351,27 @@ Output JSON only.
       y = ymin / div;
       width = (xmax - xmin) / div;
       height = (ymax - ymin) / div;
+    } else if (b.box && typeof b.box === 'object') {
+      // Fallback: Standard Box Object { top, left, width, height }
+      const rawTop = b.box.top ?? b.box.y ?? b.box.ymin;
+      const rawLeft = b.box.left ?? b.box.x ?? b.box.xmin;
+      const rawW = b.box.width ?? b.box.w;
+      const rawH = b.box.height ?? b.box.h ?? (b.box.ymax !== undefined ? Number(b.box.ymax) - Number(rawTop) : undefined);
+
+      if (rawTop !== undefined && rawLeft !== undefined) {
+        const topNum = Number(rawTop);
+        const leftNum = Number(rawLeft);
+        const div = (is1000Scale || topNum > 100 || leftNum > 100) ? 10 : 1;
+        x = leftNum / div;
+        y = topNum / div;
+        width = rawW !== undefined ? Number(rawW) / div : 28;
+        height = rawH !== undefined ? Number(rawH) / div : 8;
+      }
     }
 
-    // Clamp to valid percentage range — max height 22% prevents giant screen-covering boxes
+    // Clamp to valid percentage range (height up to 40% allows tall vertical webtoon bubbles)
     width  = Math.max(4, Math.min(95, Number(width)  || 25));
-    height = Math.max(2, Math.min(22, Number(height) || 7));
+    height = Math.max(2, Math.min(40, Number(height) || 8));
     x      = Math.max(0.2, Math.min(97, Number(x)    || 10));
     y      = Math.max(0.2, Math.min(98, Number(y)    || 10));
 

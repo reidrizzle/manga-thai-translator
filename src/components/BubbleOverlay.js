@@ -101,47 +101,72 @@ export default function BubbleOverlay({
     bubble.bg_color === 'dark' ||
     bubble.type === 'system';
 
-  const renderMode = bubbleStyle.renderMode || 'patch';
-
-  // In 'patch' mode: seamlessly cover only the bubble interior with matching white/dark, NO fake black borders!
-  // In 'lens' mode: soft frosted glass
+  const renderMode = bubbleStyle.renderMode || 'patch'; // 'patch' | 'lens' | 'transparent'
   const isLens = renderMode === 'lens';
-  const bgFill = isLens
-    ? (isDark ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.92)')
-    : (isDark ? '#0f172a' : '#ffffff');
+  const isTransparent = renderMode === 'transparent';
+
+  // Dynamic Background & Border per render mode
+  let bgFill = '#ffffff';
+  let borderStyle = 'none';
+  let boxShadow = 'none';
+  let backdropFilter = 'none';
+
+  if (isTransparent) {
+    bgFill = 'transparent';
+    borderStyle = 'none';
+  } else if (isLens) {
+    bgFill = isDark ? 'rgba(15, 23, 42, 0.84)' : 'rgba(255, 255, 255, 0.88)';
+    backdropFilter = 'blur(8px)';
+    borderStyle = '1px solid rgba(148, 163, 184, 0.4)';
+    boxShadow = '0 4px 14px rgba(0, 0, 0, 0.15)';
+  } else {
+    // 'patch' mode: fills matching bubble color, covers original text completely
+    bgFill = isDark ? '#0f172a' : '#ffffff';
+    if (isRect) {
+      borderStyle = '1.5px solid #1e293b';
+      boxShadow = '0 1px 3px rgba(0,0,0,0.12)';
+    }
+  }
 
   const textFill = isDark ? '#ffffff' : '#000000';
 
-  const textShadow = isDark
-    ? '0 1px 2px rgba(0,0,0,0.8)'
-    : (isLens ? '0 0 2px #fff' : 'none');
+  const textShadow = isTransparent
+    ? (isDark
+        ? '0 0 4px #000, 0 0 8px #000, 0 1px 2px #000'
+        : '0 0 4px #fff, 0 0 8px #fff, 0 1px 2px rgba(0,0,0,0.85)')
+    : (isDark
+        ? '0 1px 2px rgba(0,0,0,0.8)'
+        : (isLens ? '0 0 2px #fff' : 'none'));
 
-  // Pill / oval shape for speech bubbles to blend into native bubble curves; 2px for rect narration
-  const borderRadius = isRect ? '2px' : '9999px';
+  // Corner radius: rect for narration, pill/rounded for speech
+  let borderRadius = '2px';
+  if (!isRect) {
+    borderRadius = isLens ? '16px' : '9999px';
+  }
 
   // Authentic comic book typography fitted to the bubble box
   const userScale = bubbleStyle.fontSizeScale || 1;
   const text = bubble.thai_translation || '';
-  const lines = text.split('\n').length;
+  const charCount = text.length;
 
-  let dynamicSize = 17;
-  if (lines <= 1) dynamicSize = 18.5;
-  else if (lines === 2) dynamicSize = 16.5;
-  else if (lines === 3) dynamicSize = 15;
-  else dynamicSize = 13.5;
+  let dynamicSize = 18;
+  if (charCount <= 20) dynamicSize = 22;
+  else if (charCount <= 40) dynamicSize = 19.5;
+  else if (charCount <= 75) dynamicSize = 17.5;
+  else dynamicSize = 15.5;
 
   if (bubble.font_size_hint === 'large') dynamicSize += 3;
   else if (bubble.font_size_hint === 'small') dynamicSize -= 2;
 
-  const fontSize = Math.round(Math.max(13, Math.min(26, dynamicSize)) * userScale);
+  const fontSize = Math.round(Math.max(15, Math.min(28, dynamicSize)) * userScale);
 
   const fontFam =
     bubbleStyle.fontFamily ||
     'var(--font-mitr), var(--font-prompt), "Mitr", "Prompt", sans-serif';
 
-  // Bold comic dialogue lettering
+  // Bold comic dialogue lettering with comfortable Thai line height
   const fontWeight = 700;
-  const lineHeight = lines > 2 ? 1.25 : 1.35;
+  const lineHeight = 1.4;
 
   const liveX = Math.max(0, Math.min(95, box.x + dragDelta.x));
   const liveY = Math.max(0, Math.min(96, box.y + dragDelta.y));
@@ -154,14 +179,18 @@ export default function BubbleOverlay({
         left:       `${liveX}%`,
         top:        `${liveY}%`,
         width:      `${box.width}%`,
-        height:     `${box.height}%`,
-        maxHeight:  `${box.height}%`,
+        minHeight:  `${box.height}%`,
+        height:     'auto',
+        maxHeight:  `${Math.max(box.height + 4, box.height * 1.35)}%`,
         zIndex:     isHovered || isEditing ? 35 : 20,
         background: bgFill,
-        border:     'none',
+        border:     borderStyle,
         borderRadius,
+        boxShadow,
+        backdropFilter,
+        WebkitBackdropFilter: backdropFilter,
         boxSizing:  'border-box',
-        padding:    isRect ? '3px 6px' : '2px 8px',
+        padding:    isRect ? '4px 6px' : '3px 8px',
         outline:    isHovered ? '1.5px dashed rgba(99,102,241,0.7)' : 'none',
         outlineOffset: '2px',
         cursor:     isDragging.current ? 'grabbing' : 'move',
