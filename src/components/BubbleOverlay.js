@@ -38,6 +38,10 @@ export default function BubbleOverlay({
   if (showOriginal) return null;
   if (!bubble.thai_translation) return null;
 
+  // If the bubble text is only punctuation (e.g. "...!!", "??", "!", "..."), do not cover the comic artwork!
+  const cleanPunct = (bubble.thai_translation || '').replace(/[\s.!?…\-~]/g, '');
+  if (cleanPunct.length === 0) return null;
+
   // === SAVE EDIT ===
   const handleSaveEdit = (e) => {
     e.stopPropagation();
@@ -99,7 +103,7 @@ export default function BubbleOverlay({
 
   const renderMode = bubbleStyle.renderMode || 'patch';
 
-  // In 'patch' mode (default): seamlessly paint over the original text with matching comic bubble white/dark
+  // In 'patch' mode: seamlessly cover only the bubble interior with matching white/dark, NO fake black borders!
   // In 'lens' mode: soft frosted glass
   const isLens = renderMode === 'lens';
   const bgFill = isLens
@@ -112,27 +116,24 @@ export default function BubbleOverlay({
     ? '0 1px 2px rgba(0,0,0,0.8)'
     : (isLens ? '0 0 2px #fff' : 'none');
 
-  // Pill / oval shape for speech bubbles to blend into native bubble curves; rect for narration
+  // Pill / oval shape for speech bubbles to blend into native bubble curves; 2px for rect narration
   const borderRadius = isRect ? '2px' : '9999px';
-  const borderStyle = isLens
-    ? (isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)')
-    : (isRect ? (isDark ? '1.5px solid #334155' : '1.5px solid #09090b') : 'none');
 
-  // === FONT SIZING — authentic, bold, readable comic book lettering ===
-  const hint = bubble.font_size_hint || 'medium';
+  // Authentic comic book typography fitted to the bubble box
   const userScale = bubbleStyle.fontSizeScale || 1;
   const text = bubble.thai_translation || '';
-  const charCount = text.replace(/\n/g, '').length || 1;
+  const lines = text.split('\n').length;
 
-  let baseSize = 18; // standard comic dialog size
-  if (hint === 'large') baseSize = 23;
-  else if (hint === 'small') baseSize = 15;
-  else if (bubble.type === 'narration' || bubble.type === 'system') baseSize = 16.5;
+  let dynamicSize = 17;
+  if (lines <= 1) dynamicSize = 18.5;
+  else if (lines === 2) dynamicSize = 16.5;
+  else if (lines === 3) dynamicSize = 15;
+  else dynamicSize = 13.5;
 
-  if (charCount > 70) baseSize -= 2;
-  else if (charCount < 14 && hint !== 'small') baseSize += 2;
+  if (bubble.font_size_hint === 'large') dynamicSize += 3;
+  else if (bubble.font_size_hint === 'small') dynamicSize -= 2;
 
-  const fontSize = Math.round(Math.max(15, Math.min(28, baseSize)) * userScale);
+  const fontSize = Math.round(Math.max(13, Math.min(26, dynamicSize)) * userScale);
 
   const fontFam =
     bubbleStyle.fontFamily ||
@@ -140,7 +141,7 @@ export default function BubbleOverlay({
 
   // Bold comic dialogue lettering
   const fontWeight = 700;
-  const lineHeight = 1.35;
+  const lineHeight = lines > 2 ? 1.25 : 1.35;
 
   const liveX = Math.max(0, Math.min(95, box.x + dragDelta.x));
   const liveY = Math.max(0, Math.min(96, box.y + dragDelta.y));
@@ -153,21 +154,21 @@ export default function BubbleOverlay({
         left:       `${liveX}%`,
         top:        `${liveY}%`,
         width:      `${box.width}%`,
-        minHeight:  `${box.height}%`,
-        height:     'auto',
+        height:     `${box.height}%`,
+        maxHeight:  `${box.height}%`,
         zIndex:     isHovered || isEditing ? 35 : 20,
         background: bgFill,
-        border:     borderStyle,
+        border:     'none',
         borderRadius,
         boxSizing:  'border-box',
-        padding:    isRect ? '4px 6px' : '3px 8px',
+        padding:    isRect ? '3px 6px' : '2px 8px',
         outline:    isHovered ? '1.5px dashed rgba(99,102,241,0.7)' : 'none',
         outlineOffset: '2px',
         cursor:     isDragging.current ? 'grabbing' : 'move',
         display:    'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        overflow:   'visible',
+        overflow:   'hidden',
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}

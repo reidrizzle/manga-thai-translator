@@ -10,36 +10,23 @@ import {
 const SYSTEM_PROMPT = `
 You are a professional Manga/Manhwa/Webtoon translator and typesetter localizing into Thai.
 
-YOUR MOST IMPORTANT RULE — ABSOLUTE REQUIREMENT BEFORE ADDING ANY BUBBLE:
-=== ONLY include a bubble in the output if you can actually READ and COPY text characters from it. ===
-If an area contains NO readable text characters (letters, words, numbers), DO NOT include it — even if it is a white rectangle or speech-bubble shape.
+CRITICAL RULES — READ CAREFULLY:
+1. ONLY include speech bubbles or narration boxes that contain ACTUAL DIALOGUE OR NARRATION TEXT written in the original comic language (English/Japanese/Korean).
+2. DO NOT detect blank drawing paper, sketchbooks, canvas, tables, walls, clothes, or characters' bodies as bubbles!
+3. DO NOT hallucinate or invent text that is not written in the comic.
+4. DO NOT translate or output bubbles that only contain punctuation marks (e.g. "...!!", "??", "!", "..."). Let the original comic sound/emotion drawings stay untouched!
+5. "original_text" MUST be the exact words read from the bubble in the source language. It must NEVER be Thai!
 
-COMMON FALSE POSITIVES TO AVOID:
-- White drawing paper, sketchbooks, or canvas objects held by characters in the artwork → NOT a bubble
-- Blank white panels or borders between panels that contain no text → NOT a bubble
-- White clothing, walls, or objects in the scene → NOT a bubble
-- Any area where original_text would be empty or blank → DO NOT include
-
-WHAT TO DETECT (Scan the entire page thoroughly from TOP to BOTTOM):
-✓ Narration boxes and caption rectangles (at top, middle, and bottom of the page)
-✓ Every dialogue speech bubble (including shouts, whispers, and short expressions like "...!!", "K-KUHK...", "??", "HMM...")
-✓ Thought bubbles
-✓ System UI windows (game status panels) with text
-Do NOT skip any narration boxes or speech bubbles!
-
-TRANSLATION QUALITY:
-- Produce NATURAL, VIBRANT Thai translations (ภาษาไม่แข็งกระด้าง ลื่นไหล เข้าปากคนไทย) matching published Thai Webtoon quality.
-- Use authentic Thai comic particles (วะ, โว้ย, สิ, น่า, หืม?, เอ๊ะ!, บ้าเอ๊ย!, ชิ!) matching character personality.
-- Provide natural Thai line breaks (\n) in thai_translation.
+WHAT TO DETECT (Scan from TOP to BOTTOM):
+✓ Real dialogue speech bubbles with actual spoken words
+✓ Real narration rectangles and caption boxes with narration text
+✓ Thought bubbles containing actual character thoughts
 
 BOUNDING BOX RULES (Percentages 0–100% of the entire image):
-- Return "box" as an object with:
-  "top": distance from top of image in percent (0 to 100)
-  "left": distance from left edge of image in percent (0 to 100)
-  "width": width of bubble/box in percent (0 to 100)
-  "height": height of bubble/box in percent (0 to 100)
-- The box must cover the full interior of the bubble or narration rectangle so it cleanly replaces the original text.
-- NEVER include a box for an area with no readable text characters.
+- "top": distance from top of image in percent (0 to 100)
+- "left": distance from left edge of image in percent (0 to 100)
+- "width": width of the text bubble/box in percent (0 to 100)
+- "height": height of the text bubble/box in percent (0 to 100). Keep height tight to the text area (typically 4% to 10% in webtoons). DO NOT make it taller than the bubble!
 
 Return ONLY valid JSON:
 {
@@ -53,19 +40,17 @@ Return ONLY valid JSON:
       "text_color": "black" | "white",
       "font_size_hint": "small" | "medium" | "large",
       "box": {
-        "top": 12.0,
-        "left": 40.0,
-        "width": 44.0,
-        "height": 9.0
+        "top": 54.9,
+        "left": 38.7,
+        "width": 44.4,
+        "height": 7.2
       },
-      "original_text": "Exact text you can READ from the bubble",
-      "thai_translation": "คำแปลภาษาไทยที่ลื่นไหล",
-      "speaker_tone": "confident | whispering | furious | confused | mocking | system_alert"
+      "original_text": "Exact text in source language (NOT Thai)",
+      "thai_translation": "คำแปลภาษาไทยที่กระชับและลื่นไหล",
+      "speaker_tone": "confident | whispering | furious | confused | mocking"
     }
   ]
 }
-
-FINAL CHECK before outputting: For every bubble in your list, verify original_text is non-empty. Remove any entry where original_text is empty.
 `;
 
 /**
@@ -304,12 +289,24 @@ Output JSON only.
     rawBubbles = data.boxes;
   }
 
-  // Filter bubbles — ONLY keep entries with actual readable text
-  // This eliminates false detections of blank white paper/artwork as narration boxes
+  // Filter bubbles — ONLY keep genuine text dialogue/narration
+  // Eliminates hallucinations (Thai characters in original_text) and punctuation-only overlays
+  const thaiCharRegex = /[\u0E00-\u0E7F]/;
+  const isSourceNonThai = sourceLang === 'English' || sourceLang === 'Japanese' || sourceLang === 'Korean' || sourceLang === 'auto';
+
   const dialogueOnly = rawBubbles.filter((b) => {
-    // Must have original text — if empty, the AI detected blank paper, not a speech bubble
     const origText = (b.original_text || b.text || b.original || '').trim();
     if (origText.length < 1) return false;
+
+    // Reject hallucinations where original_text is Thai when reading non-Thai comic
+    if (isSourceNonThai && thaiCharRegex.test(origText)) {
+      return false;
+    }
+
+    // Skip pure punctuation-only bubbles (...!!, ??, !) so they don't cover comic art
+    const stripped = origText.replace(/[\s.!?…\-~]/g, '');
+    if (stripped.length === 0) return false;
+
     return true;
   });
 
@@ -376,11 +373,11 @@ Output JSON only.
       height = (ymax - ymin) / div;
     }
 
-    // Clamp to valid percentage range — allow webtoon small heights and tall narration
-    width  = Math.max(4,   Math.min(95, Number(width)  || 25));
-    height = Math.max(1.2, Math.min(70, Number(height) || 6));
-    x      = Math.max(0.2, Math.min(97, Number(x)      || 10));
-    y      = Math.max(0.2, Math.min(98, Number(y)      || 10));
+    // Clamp to valid percentage range — max height 22% prevents giant screen-covering boxes
+    width  = Math.max(4, Math.min(95, Number(width)  || 25));
+    height = Math.max(2, Math.min(22, Number(height) || 7));
+    x      = Math.max(0.2, Math.min(97, Number(x)    || 10));
+    y      = Math.max(0.2, Math.min(98, Number(y)    || 10));
 
     const type = b.type || 'speech';
     const isDarkBg =
