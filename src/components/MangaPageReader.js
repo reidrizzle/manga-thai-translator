@@ -15,6 +15,7 @@ import {
   ListOrdered,
   Type,
   Grid,
+  Layers,
 } from 'lucide-react';
 
 export default function MangaPageReader({
@@ -158,6 +159,19 @@ export default function MangaPageReader({
             {showOriginal ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             <span className="hidden md:inline">
               {showOriginal ? 'ภาพเดิม' : 'แปลไทย'}
+            </span>
+          </button>
+
+          {/* Style Mode: Lens (กล่องใส ไม่บังภาพ) vs Patch (ปิดทับข้อความเดิม) */}
+          <button
+            type="button"
+            onClick={() => setRenderMode(renderMode === 'lens' ? 'patch' : 'lens')}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all"
+            title="สลับสไตล์การแสดงผล: กล่องใส (ไม่บังภาพ) / ปิดทับ"
+          >
+            <Layers className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">
+              {renderMode === 'lens' ? 'กล่องใส (Lens)' : 'ปิดทับ (Patch)'}
             </span>
           </button>
 

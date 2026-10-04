@@ -58,7 +58,7 @@ export async function POST(request) {
       sourceLang: sourceLang || 'auto',
       tonePreset: tonePreset || 'manhwa_natural',
       customApiKey: customApiKey || null,
-      modelName: modelName || 'gemini-1.5-flash',
+      modelName: modelName || 'gemini-3.8-flash', // was 'gemini-1.5-flash' — old/wrong model
     });
 
     return NextResponse.json({

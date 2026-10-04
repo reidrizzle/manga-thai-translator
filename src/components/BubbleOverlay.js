@@ -97,43 +97,55 @@ export default function BubbleOverlay({
     bubble.bg_color === 'dark' ||
     bubble.type === 'system';
 
-  // Background fills the bubble interior completely
-  const bgFill = isDark ? 'rgba(8, 10, 28, 0.97)' : '#ffffff';
-  const textFill = isDark ? '#e2e8f0' : '#111111';
+  const renderMode = bubbleStyle.renderMode || 'lens';
 
-  // For speech bubbles: inset a tiny amount so the drawn bubble border peeks through
-  // For narration rects: flush fill, no inset
-  const insetPx = isRect ? 0 : 3;
+  // In 'lens' mode (default): completely transparent box ("กล่องใส ไม่บังภาพ")
+  // In 'patch' mode: subtle opaque fill with rounded corners to erase previous text
+  const isLens = renderMode === 'lens';
+  const bgFill = isLens
+    ? 'transparent'
+    : isDark
+    ? 'rgba(15, 23, 42, 0.96)'
+    : 'rgba(255, 255, 255, 0.97)';
 
-  // === FONT SIZING — proportional to box dimensions like the original ===
-  // The box.height is in % of image height. A typical speech bubble is ~8-15% tall.
-  // We want font to fill the bubble naturally, matching original comic book sizing.
+  const textFill = isDark ? '#ffffff' : '#000000';
+
+  // Thai comic text stroke / shadow for maximum legibility in transparent lens mode
+  const textShadow = isLens
+    ? isDark
+      ? '0 0 3px #000, 0 0 6px #000, 0 0 10px #000, 0 1px 2px #000'
+      : '0 0 3px #ffffff, 0 0 6px #ffffff, 0 0 10px #ffffff, 0 1px 2px #ffffff'
+    : isDark
+    ? '0 1px 2px rgba(0,0,0,0.8)'
+    : 'none';
+
+  const borderRadius = isRect ? '4px' : '22px';
+
+  // === FONT SIZING — readable comic book lettering ===
   const hint = bubble.font_size_hint || 'medium';
   const userScale = bubbleStyle.fontSizeScale || 1;
   const text = bubble.thai_translation || '';
-  const lineCount = (text.match(/\n/g) || []).length + 1;
   const charCount = text.replace(/\n/g, '').length || 1;
 
-  // Base size driven by hint AND box height
-  // box.height is percentage (e.g. 8 = 8% of image height)
-  // A 8% bubble on a ~800px image = ~64px tall -> 3 lines -> ~18px font
-  // Formula: font = boxHeight% * 1.8 clamped to reasonable range
-  const proportional = box.height * 1.8; // e.g. 8% * 1.8 = 14.4px
-  const hintBonus = hint === 'large' ? 4 : hint === 'small' ? -2 : 0;
-  const lengthPenalty = charCount > 80 ? -2 : charCount > 40 ? -1 : 0;
-  const fontSize = Math.round(
-    Math.max(13, Math.min(24, proportional + hintBonus + lengthPenalty)) * userScale
-  );
+  let baseSize = 16.5; // standard comic dialog size
+  if (hint === 'large') baseSize = 22;
+  else if (hint === 'small') baseSize = 13.5;
+  else if (bubble.type === 'narration' || bubble.type === 'system') baseSize = 15;
+
+  if (charCount > 75) baseSize -= 2.5;
+  else if (charCount > 40) baseSize -= 1.5;
+  else if (charCount < 10 && hint !== 'small') baseSize += 1.5;
+
+  const fontSize = Math.round(Math.max(13, Math.min(26, baseSize)) * userScale);
 
   const fontFam =
     bubbleStyle.fontFamily ||
     'var(--font-mitr), var(--font-prompt), "Mitr", "Prompt", sans-serif';
 
-  // Bold for speech/thought, regular for narration
-  const fontWeight = (bubble.type === 'narration' || bubble.type === 'system') ? 400 : 700;
+  // Bold for speech/thought, medium for narration
+  const fontWeight = (bubble.type === 'narration' || bubble.type === 'system') ? 500 : 700;
 
-  // Line height tighter for small bubbles
-  const lineHeight = fontSize <= 13 ? 1.3 : 1.25;
+  const lineHeight = fontSize <= 14 ? 1.3 : 1.25;
 
   const liveX = Math.max(0, Math.min(95, box.x + dragDelta.x));
   const liveY = Math.max(0, Math.min(96, box.y + dragDelta.y));
@@ -148,15 +160,12 @@ export default function BubbleOverlay({
         width:  `${box.width}%`,
         height: `${box.height}%`,
         zIndex: isHovered || isEditing ? 35 : 20,
-        // The entire bounding box is filled — erases original text completely
         background: bgFill,
-        // Tiny inset border for speech bubbles so the drawn outline stays visible
+        borderRadius,
         boxSizing: 'border-box',
-        padding: `${insetPx}px`,
-        // Soft outline on hover to show this is interactive
+        padding: '2px 4px',
         outline: isHovered ? '1.5px dashed rgba(99,102,241,0.7)' : 'none',
         outlineOffset: '2px',
-        // The actual bubble shape clipping is handled by the image itself — we just fill it
         cursor: isDragging.current ? 'grabbing' : 'move',
         display: 'flex',
         alignItems: 'center',
@@ -219,7 +228,7 @@ export default function BubbleOverlay({
             margin: 0,
             padding: '2px 6px',
             width: '100%',
-            textShadow: isDark ? '0 1px 3px rgba(0,0,0,0.8)' : 'none',
+            textShadow,
             userSelect: 'none',
           }}
         >

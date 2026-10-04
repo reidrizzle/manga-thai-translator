@@ -33,10 +33,10 @@ TRANSLATION QUALITY:
 - Provide natural Thai line breaks (\\n) in thai_translation.
 
 BOUNDING BOX RULES:
-- Return box_2d as [ymin, xmin, ymax, xmax] integers on 0–1000 scale.
-- The box must cover the FULL INTERIOR of the bubble/box (white area including padding, not just characters).
-- For narration boxes: cover the full printed-text rectangle edge-to-edge.
-- NEVER include a box for an area with no readable text.
+- Return box_2d as [ymin, xmin, ymax, xmax] integers strictly on the 0–1000 scale (0 = top/left 0%, 1000 = bottom/right 100%).
+- ymin is top edge, xmin is left edge, ymax is bottom edge, xmax is right edge.
+- The box must tightly wrap the dialogue text or narration box.
+- NEVER include a box for an area with no readable text characters.
 
 Return ONLY valid JSON:
 {
@@ -167,9 +167,9 @@ Language Instruction: ${langInstruction}
 Reading Flow Direction: ${readingFlow}
 Tone Mode: ${tonePreset}
 
-Now, carefully inspect this manga/manhwa page image. Locate every speech bubble, text box, narration, and sound effect following the specific reading flow direction.
+Now, carefully inspect this manga/manhwa page image. Locate every speech bubble, text box, and narration following the specific reading flow direction.
 Translate every bubble into natural, colloquial Thai that sounds like authentic Thai comic publications.
-Calculate the exact percentage coordinates of each bubble accurately.
+Return box_2d coordinates [ymin, xmin, ymax, xmax] integers strictly on the 0-1000 scale.
 Output JSON only.
 `;
 
@@ -180,18 +180,16 @@ Output JSON only.
     },
   };
 
-  // ⚡ Current Gemini Free Tier models (Oct 2026)
-  // gemini-3.8-flash = GA, confirmed working
-  // gemini-2.5-flash = stable fallback
-  // gemini-2.5-flash-8b REMOVED — returns 404 on v1beta
+  // ⚡ Current Gemini Free Tier models
+  // gemini-2.5-flash & gemini-3.8-flash
   const ALLOWED_MODELS = [
-    'gemini-3.8-flash',
     'gemini-2.5-flash',
+    'gemini-3.8-flash',
   ];
 
   const preferredModel = ALLOWED_MODELS.includes(modelName)
     ? modelName
-    : 'gemini-3.8-flash';
+    : 'gemini-2.5-flash';
 
   const candidateModels = Array.from(
     new Set([preferredModel, ...ALLOWED_MODELS])
@@ -311,49 +309,80 @@ Output JSON only.
     return true;
   });
 
+  // Determine coordinate scale across the whole response
+  // Gemini's standard box_2d format is [ymin, xmin, ymax, xmax] on a 0-1000 scale.
+  // In manga/webtoon, bubbles further down the page will have coordinates > 100.
+  // If ANY coordinate across ANY bubble is > 100, the WHOLE response is on 0-1000 scale.
+  const allCoordinates = dialogueOnly.flatMap((b) => {
+    if (Array.isArray(b.box_2d) && b.box_2d.length === 4) return b.box_2d.map(Number);
+    if (Array.isArray(b.box) && b.box.length === 4) return b.box.map(Number);
+    if (b.box && typeof b.box === 'object') {
+      return [b.box.ymin, b.box.xmin, b.box.ymax, b.box.xmax, b.box.x, b.box.y]
+        .filter((v) => v !== undefined)
+        .map(Number);
+    }
+    return [];
+  });
+
+  const is1000Scale = allCoordinates.some((val) => val > 100);
+
   const normalizedBubbles = dialogueOnly.map((b, idx) => {
-    let x = 15, y = 15, width = 30, height = 10;
+    let x = 15, y = 15, width = 30, height = 8;
 
     // Standard Gemini 2D Object Detection: [ymin, xmin, ymax, xmax] (0-1000 scale)
     if (Array.isArray(b.box_2d) && b.box_2d.length === 4) {
-      const [ymin, xmin, ymax, xmax] = b.box_2d.map(Number);
-      const scale = (ymin > 100 || xmin > 100 || ymax > 100 || xmax > 100) ? 10 : 1;
-      x = xmin / scale;
-      y = ymin / scale;
-      width = (xmax - xmin) / scale;
-      height = (ymax - ymin) / scale;
+      const [y1Raw, x1Raw, y2Raw, x2Raw] = b.box_2d.map(Number);
+      const ymin = Math.min(y1Raw, y2Raw);
+      const ymax = Math.max(y1Raw, y2Raw);
+      const xmin = Math.min(x1Raw, x2Raw);
+      const xmax = Math.max(x1Raw, x2Raw);
+
+      const div = (is1000Scale || ymax > 100 || xmax > 100) ? 10 : 1;
+      x = xmin / div;
+      y = ymin / div;
+      width = (xmax - xmin) / div;
+      height = (ymax - ymin) / div;
     } else if (Array.isArray(b.box) && b.box.length === 4) {
-      const [ymin, xmin, ymax, xmax] = b.box.map(Number);
-      const scale = (ymin > 100 || xmin > 100 || ymax > 100 || xmax > 100) ? 10 : 1;
-      x = xmin / scale;
-      y = ymin / scale;
-      width = (xmax - xmin) / scale;
-      height = (ymax - ymin) / scale;
+      const [y1Raw, x1Raw, y2Raw, x2Raw] = b.box.map(Number);
+      const ymin = Math.min(y1Raw, y2Raw);
+      const ymax = Math.max(y1Raw, y2Raw);
+      const xmin = Math.min(x1Raw, x2Raw);
+      const xmax = Math.max(x1Raw, x2Raw);
+
+      const div = (is1000Scale || ymax > 100 || xmax > 100) ? 10 : 1;
+      x = xmin / div;
+      y = ymin / div;
+      width = (xmax - xmin) / div;
+      height = (ymax - ymin) / div;
     } else if (b.box && typeof b.box === 'object') {
       if (b.box.ymin !== undefined && b.box.xmin !== undefined) {
-        const scale = (b.box.ymin > 100 || b.box.xmin > 100) ? 10 : 1;
-        x = Number(b.box.xmin) / scale;
-        y = Number(b.box.ymin) / scale;
-        width = (Number(b.box.xmax) - Number(b.box.xmin)) / scale;
-        height = (Number(b.box.ymax) - Number(b.box.ymin)) / scale;
+        const ymin = Math.min(Number(b.box.ymin), Number(b.box.ymax));
+        const ymax = Math.max(Number(b.box.ymin), Number(b.box.ymax));
+        const xmin = Math.min(Number(b.box.xmin), Number(b.box.xmax));
+        const xmax = Math.max(Number(b.box.xmin), Number(b.box.xmax));
+        const div = (is1000Scale || ymax > 100 || xmax > 100) ? 10 : 1;
+        x = xmin / div;
+        y = ymin / div;
+        width = (xmax - xmin) / div;
+        height = (ymax - ymin) / div;
       } else if (b.box.x !== undefined && b.box.y !== undefined) {
         const bx = Number(b.box.x);
         const by = Number(b.box.y);
-        const bw = Number(b.box.width || b.box.w || 30);
-        const bh = Number(b.box.height || b.box.h || 10);
-        const scale = (bx > 100 || by > 100 || bw > 100 || bh > 100) ? 10 : 1;
-        x = bx / scale;
-        y = by / scale;
-        width = bw / scale;
-        height = bh / scale;
+        const bw = Number(b.box.width || b.box.w || 28);
+        const bh = Number(b.box.height || b.box.h || 8);
+        const div = (is1000Scale || bx > 100 || by > 100 || bw > 100 || bh > 100) ? 10 : 1;
+        x = bx / div;
+        y = by / div;
+        width = bw / div;
+        height = bh / div;
       }
     }
 
-    // Clamp to valid percentage range — allow tall narration boxes (up to 60% height)
-    width  = Math.max(5,   Math.min(92, Number(width)  || 28));
-    height = Math.max(3,   Math.min(60, Number(height) || 10));  // was 22 — now allows narration boxes
-    x      = Math.max(0.5, Math.min(94, Number(x)      || 15));
-    y      = Math.max(0.5, Math.min(96, Number(y)      || 15));
+    // Clamp to valid percentage range — allow webtoon small heights and tall narration
+    width  = Math.max(3,   Math.min(96, Number(width)  || 25));
+    height = Math.max(1.2, Math.min(70, Number(height) || 6));
+    x      = Math.max(0.2, Math.min(97, Number(x)      || 10));
+    y      = Math.max(0.2, Math.min(98, Number(y)      || 10));
 
     const type = b.type || 'speech';
     const isDarkBg =
