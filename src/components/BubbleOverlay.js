@@ -105,23 +105,25 @@ export default function BubbleOverlay({
   // For narration rects: flush fill, no inset
   const insetPx = isRect ? 0 : 3;
 
-  // === FONT SIZING — mirrors the original based on AI hint + box area ===
+  // === FONT SIZING — proportional to box dimensions like the original ===
+  // The box.height is in % of image height. A typical speech bubble is ~8-15% tall.
+  // We want font to fill the bubble naturally, matching original comic book sizing.
   const hint = bubble.font_size_hint || 'medium';
   const userScale = bubbleStyle.fontSizeScale || 1;
   const text = bubble.thai_translation || '';
+  const lineCount = (text.match(/\n/g) || []).length + 1;
   const charCount = text.replace(/\n/g, '').length || 1;
 
-  // Base size from AI hint
-  let basePx =
-    hint === 'large'  ? 20 :
-    hint === 'medium' ? 16 :
-                        13;    // small
-
-  // Shrink slightly if text is very long to fit the area
-  if (charCount > 60) basePx = Math.max(11, basePx - 3);
-  else if (charCount > 30) basePx = Math.max(12, basePx - 1);
-
-  const fontSize = Math.round(basePx * userScale);
+  // Base size driven by hint AND box height
+  // box.height is percentage (e.g. 8 = 8% of image height)
+  // A 8% bubble on a ~800px image = ~64px tall -> 3 lines -> ~18px font
+  // Formula: font = boxHeight% * 1.8 clamped to reasonable range
+  const proportional = box.height * 1.8; // e.g. 8% * 1.8 = 14.4px
+  const hintBonus = hint === 'large' ? 4 : hint === 'small' ? -2 : 0;
+  const lengthPenalty = charCount > 80 ? -2 : charCount > 40 ? -1 : 0;
+  const fontSize = Math.round(
+    Math.max(13, Math.min(24, proportional + hintBonus + lengthPenalty)) * userScale
+  );
 
   const fontFam =
     bubbleStyle.fontFamily ||

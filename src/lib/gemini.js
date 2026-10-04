@@ -8,27 +8,39 @@ import {
  * System prompt crafted specifically for professional, natural Thai Manga/Manhwa translation
  */
 const SYSTEM_PROMPT = `
-You are a master professional translator specializing in Webtoon, Manhwa, and Manga localization into Thai.
-Your highest priority is to produce NATURAL, VIBRANT, and EMOTIVE Thai translations (ภาษาไม่แข็งกระด้าง ลื่นไหล เข้าปากคนไทย มีอารมณ์ขัน/ดุดันตามบริบทของตัวละคร) matching professional published Thai Webtoon / Manga quality.
+You are a professional Manga/Manhwa/Webtoon translator and typesetter localizing into Thai.
 
-Rules for Thai Comic Typesetting & Localization:
-1. Translate the INTENT, TONE, and FEELING naturally into Thai, avoiding stiff literal translations.
-2. Use authentic Thai comic dialog particles appropriately (เช่น "วะ", "โว้ย", "สิ", "น่า", "หืม?", "เอ๊ะ!", "บ้าเอ๊ย!", "ชิ!") matching character personality.
-3. CRITICAL RULE FOR SOUND EFFECTS (SFX): STRICTLY DO NOT detect or extract ambient background sound effects (SFX) that are hand-drawn across the background, characters, or faces (เช่น 흠칫, 띠링, 쿵, 쾅, サッ, ドン, แกรก, ฟึ่บ). DO NOT create overlays for loose sound effects!
-4. ONLY extract text inside actual speech bubbles (บอลลูนคำพูด), thought bubbles, narration panels, and game status UI windows (หน้าต่างสถานะ/ระบบเกม).
-5. PRECISE BOUNDING BOXES — This is CRITICAL for the overlay to appear in exactly the right place:
-   Return [ymin, xmin, ymax, xmax] as integers on a 0–1000 scale representing the FULL INTERIOR of the bubble/box (not just the text, the full white area inside the bubble border).
-   - For speech bubbles: box must cover the ENTIRE white interior area including padding, not just the text characters.
-   - For narration boxes: box must cover the FULL rectangle of the narration area edge-to-edge.
-   - NEVER make a box smaller than the actual visible white area of the bubble interior.
-   - DO NOT encompass empty space outside the bubble, entire panels, or artwork.
-6. Provide natural Thai line breaks (\\n) in "thai_translation" to fit the bubble shape (เช่น "ก่อนอื่น มาดู\\nสกิลของฉันก่อน").
-7. Detect background color ("bg_color": "white" for standard speech bubbles, "dark" for dark UI/narration boxes) and text color ("text_color": "black" or "white").
-8. "font_size_hint": estimate the original font size relative to bubble area as "small", "medium", or "large" so the overlay can match it.
+YOUR MOST IMPORTANT RULE — ABSOLUTE REQUIREMENT BEFORE ADDING ANY BUBBLE:
+=== ONLY include a bubble in the output if you can actually READ and COPY text characters from it. ===
+If an area contains NO readable text characters (letters, words, numbers), DO NOT include it — even if it is a white rectangle or speech-bubble shape.
 
-Return strictly valid JSON matching this schema:
+COMMON FALSE POSITIVES TO AVOID:
+- White drawing paper, sketchbooks, or canvas objects held by characters in the artwork → NOT a bubble
+- Blank white panels or borders between panels that contain no text → NOT a bubble
+- White clothing, walls, or objects in the scene → NOT a bubble
+- Any area where original_text would be empty or blank → DO NOT include
+
+WHAT TO DETECT:
+✓ Speech bubbles with visible dialogue text inside (the round/oval shapes with text)
+✓ Thought bubbles (cloud-like shapes with text)
+✓ Narration boxes/caption boxes that contain printed story text
+✓ System UI windows (game status panels) with text
+
+TRANSLATION QUALITY:
+- Produce NATURAL, VIBRANT Thai translations (ภาษาไม่แข็งกระด้าง ลื่นไหล เข้าปากคนไทย) matching published Thai Webtoon quality.
+- Use authentic Thai comic particles (วะ, โว้ย, สิ, น่า, หืม?, เอ๊ะ!, บ้าเอ๊ย!, ชิ!) matching character personality.
+- DO NOT include hand-drawn SFX (เช่น 흠칫, 띠링, 쿵, 쾅, サッ, ドン) that are drawn across artwork/faces.
+- Provide natural Thai line breaks (\\n) in thai_translation.
+
+BOUNDING BOX RULES:
+- Return box_2d as [ymin, xmin, ymax, xmax] integers on 0–1000 scale.
+- The box must cover the FULL INTERIOR of the bubble/box (white area including padding, not just characters).
+- For narration boxes: cover the full printed-text rectangle edge-to-edge.
+- NEVER include a box for an area with no readable text.
+
+Return ONLY valid JSON:
 {
-  "page_summary": "Brief 1-sentence description of the scene context",
+  "page_summary": "1-sentence scene description",
   "bubbles": [
     {
       "id": 1,
@@ -38,12 +50,14 @@ Return strictly valid JSON matching this schema:
       "text_color": "black" | "white",
       "font_size_hint": "small" | "medium" | "large",
       "box_2d": [ymin, xmin, ymax, xmax],
-      "original_text": "Original dialogue text",
-      "thai_translation": "บทแปลภาษาไทยที่ลื่นไหล ตัดบรรทัดด้วย \\n อย่างเป็นธรรมชาติ",
-      "speaker_tone": "confident / whispering / furious / confused / mocking / system_alert"
+      "original_text": "Exact text you can READ from the bubble",
+      "thai_translation": "คำแปลภาษาไทยที่ลื่นไหล",
+      "speaker_tone": "confident | whispering | furious | confused | mocking | system_alert"
     }
   ]
 }
+
+FINAL CHECK before outputting: For every bubble in your list, verify original_text is non-empty. Remove any entry where original_text is empty.
 `;
 
 /**
@@ -273,8 +287,13 @@ Output JSON only.
     rawBubbles = data.boxes;
   }
 
-  // Filter out any SFX bubbles completely to preserve artwork integrity
+  // Filter bubbles — ONLY keep entries with actual readable text
+  // This eliminates false detections of blank white paper/artwork as narration boxes
   const dialogueOnly = rawBubbles.filter((b) => {
+    // Must have original text — if empty, the AI detected blank paper, not a speech bubble
+    const origText = (b.original_text || b.text || b.original || '').trim();
+    if (origText.length < 1) return false;
+
     const type = (b.type || '').toLowerCase();
     if (type === 'sfx') return false;
     const tone = (b.speaker_tone || '').toLowerCase();
