@@ -101,12 +101,13 @@ export default function BubbleOverlay({
     bubble.bg_color === 'dark' ||
     bubble.type === 'system';
 
-  const renderMode = bubbleStyle.renderMode || 'patch'; // 'patch' | 'lens' | 'transparent'
+  // Default to 'transparent' (กล่องใส ไม่บังรูปภาพ) if not specified
+  const renderMode = bubbleStyle.renderMode || 'transparent'; // 'transparent' | 'lens' | 'patch'
   const isLens = renderMode === 'lens';
   const isTransparent = renderMode === 'transparent';
 
-  // Dynamic Background & Border per render mode
-  let bgFill = '#ffffff';
+  // Dynamic Background & Border per render mode — NO artificial black borders!
+  let bgFill = 'transparent';
   let borderStyle = 'none';
   let boxShadow = 'none';
   let backdropFilter = 'none';
@@ -115,50 +116,55 @@ export default function BubbleOverlay({
     bgFill = 'transparent';
     borderStyle = 'none';
   } else if (isLens) {
-    bgFill = isDark ? 'rgba(15, 23, 42, 0.84)' : 'rgba(255, 255, 255, 0.88)';
-    backdropFilter = 'blur(8px)';
-    borderStyle = '1px solid rgba(148, 163, 184, 0.4)';
-    boxShadow = '0 4px 14px rgba(0, 0, 0, 0.15)';
+    bgFill = isDark ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.82)';
+    backdropFilter = 'blur(6px)';
+    borderStyle = isDark ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(0, 0, 0, 0.08)';
+    boxShadow = '0 2px 10px rgba(0, 0, 0, 0.12)';
   } else {
-    // 'patch' mode: fills matching bubble color, covers original text completely
+    // 'patch' mode: fills matching bubble color cleanly, covers original text underneath
     bgFill = isDark ? '#0f172a' : '#ffffff';
-    if (isRect) {
-      borderStyle = '1.5px solid #1e293b';
-      boxShadow = '0 1px 3px rgba(0,0,0,0.12)';
-    }
+    borderStyle = 'none';
   }
 
   const textFill = isDark ? '#ffffff' : '#000000';
 
+  // Crisp outline for transparent mode ensures 100% legibility over any comic artwork
   const textShadow = isTransparent
     ? (isDark
-        ? '0 0 4px #000, 0 0 8px #000, 0 1px 2px #000'
-        : '0 0 4px #fff, 0 0 8px #fff, 0 1px 2px rgba(0,0,0,0.85)')
+        ? '0 0 3px #000, 0 0 6px #000, -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000'
+        : '0 0 3px #fff, 0 0 6px #fff, -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff, 0 1px 3px rgba(0,0,0,0.6)')
     : (isDark
         ? '0 1px 2px rgba(0,0,0,0.8)'
         : (isLens ? '0 0 2px #fff' : 'none'));
 
-  // Corner radius: rect for narration, pill/rounded for speech
-  let borderRadius = '2px';
+  // Corner radius: rect for narration, rounded for speech
+  let borderRadius = '3px';
   if (!isRect) {
-    borderRadius = isLens ? '16px' : '9999px';
+    borderRadius = isLens ? '14px' : '9999px';
   }
 
-  // Authentic comic book typography fitted to the bubble box
+  // Authentic comic book typography scaled proportionally to original bubble dimensions
   const userScale = bubbleStyle.fontSizeScale || 1;
   const text = bubble.thai_translation || '';
   const charCount = text.length;
 
-  let dynamicSize = 18;
-  if (charCount <= 20) dynamicSize = 22;
-  else if (charCount <= 40) dynamicSize = 19.5;
-  else if (charCount <= 75) dynamicSize = 17.5;
-  else dynamicSize = 15.5;
+  let baseFont = 18;
+  if (box.width) {
+    if (charCount <= 20) {
+      baseFont = Math.min(26, Math.max(18, box.width * 0.55));
+    } else if (charCount <= 45) {
+      baseFont = Math.min(22, Math.max(16, box.width * 0.45));
+    } else if (charCount <= 80) {
+      baseFont = Math.min(19, Math.max(15, box.width * 0.38));
+    } else {
+      baseFont = Math.min(16, Math.max(13.5, box.width * 0.32));
+    }
+  }
 
-  if (bubble.font_size_hint === 'large') dynamicSize += 3;
-  else if (bubble.font_size_hint === 'small') dynamicSize -= 2;
+  if (bubble.font_size_hint === 'large') baseFont += 3;
+  else if (bubble.font_size_hint === 'small') baseFont -= 2;
 
-  const fontSize = Math.round(Math.max(15, Math.min(28, dynamicSize)) * userScale);
+  const fontSize = Math.round(baseFont * userScale);
 
   const fontFam =
     bubbleStyle.fontFamily ||
@@ -166,7 +172,7 @@ export default function BubbleOverlay({
 
   // Bold comic dialogue lettering with comfortable Thai line height
   const fontWeight = 700;
-  const lineHeight = 1.4;
+  const lineHeight = 1.38;
 
   const liveX = Math.max(0, Math.min(95, box.x + dragDelta.x));
   const liveY = Math.max(0, Math.min(96, box.y + dragDelta.y));
@@ -179,9 +185,8 @@ export default function BubbleOverlay({
         left:       `${liveX}%`,
         top:        `${liveY}%`,
         width:      `${box.width}%`,
-        minHeight:  `${box.height}%`,
-        height:     'auto',
-        maxHeight:  `${Math.max(box.height + 4, box.height * 1.35)}%`,
+        height:     `${box.height}%`,
+        maxHeight:  `${box.height}%`,
         zIndex:     isHovered || isEditing ? 35 : 20,
         background: bgFill,
         border:     borderStyle,
@@ -190,7 +195,7 @@ export default function BubbleOverlay({
         backdropFilter,
         WebkitBackdropFilter: backdropFilter,
         boxSizing:  'border-box',
-        padding:    isRect ? '4px 6px' : '3px 8px',
+        padding:    isRect ? '3px 6px' : '2px 6px',
         outline:    isHovered ? '1.5px dashed rgba(99,102,241,0.7)' : 'none',
         outlineOffset: '2px',
         cursor:     isDragging.current ? 'grabbing' : 'move',

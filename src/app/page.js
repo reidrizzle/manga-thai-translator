@@ -98,20 +98,22 @@ export default function HomePage() {
   // Translate a single page
   const handleTranslateSinglePage = async (pageIndex) => {
     if (pageIndex < 0 || pageIndex >= pages.length) return;
+    const currentPage = pages[pageIndex];
+    const targetPageId = currentPage.id;
+
     setGlobalError('');
     setIsTranslating(true);
     setCurrentTranslateIndex(pageIndex);
 
     setPages((prev) =>
-      prev.map((p, idx) =>
-        idx === pageIndex
+      prev.map((p) =>
+        p.id === targetPageId
           ? { ...p, status: 'translating', bubbles: [], error: null }
           : p
       )
     );
 
     try {
-      const currentPage = pages[pageIndex];
       const response = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -132,8 +134,8 @@ export default function HomePage() {
       }
 
       setPages((prev) =>
-        prev.map((p, idx) =>
-          idx === pageIndex
+        prev.map((p) =>
+          p.id === targetPageId
             ? {
                 ...p,
                 status: 'done',
@@ -147,8 +149,8 @@ export default function HomePage() {
       console.error(`Page ${pageIndex + 1} translation failed:`, err);
       setGlobalError(err.message);
       setPages((prev) =>
-        prev.map((p, idx) =>
-          idx === pageIndex ? { ...p, status: 'error', error: err.message } : p
+        prev.map((p) =>
+          p.id === targetPageId ? { ...p, status: 'error', error: err.message } : p
         )
       );
     } finally {
@@ -166,6 +168,7 @@ export default function HomePage() {
     for (let i = 0; i < pages.length; i++) {
       setCurrentTranslateIndex(i);
       const currentPage = pages[i];
+      const targetPageId = currentPage.id;
 
       // Delay 2 seconds between pages to respect Free Tier Rate Limits (15 RPM)
       if (i > 0 && activeKey !== 'demo') {
@@ -174,8 +177,8 @@ export default function HomePage() {
 
       // Mark current page as translating and clear any old bubbles
       setPages((prev) =>
-        prev.map((p, idx) =>
-          idx === i
+        prev.map((p) =>
+          p.id === targetPageId
             ? { ...p, status: 'translating', bubbles: [], error: null }
             : p
         )
@@ -204,8 +207,8 @@ export default function HomePage() {
 
         // Update page with translation results
         setPages((prev) =>
-          prev.map((p, idx) =>
-            idx === i
+          prev.map((p) =>
+            p.id === targetPageId
               ? {
                   ...p,
                   status: 'done',
@@ -220,8 +223,8 @@ export default function HomePage() {
       } catch (err) {
         console.error(`Page ${i + 1} translation failed:`, err);
         setPages((prev) =>
-          prev.map((p, idx) =>
-            idx === i ? { ...p, status: 'error', error: err.message } : p
+          prev.map((p) =>
+            p.id === targetPageId ? { ...p, status: 'error', error: err.message } : p
           )
         );
 

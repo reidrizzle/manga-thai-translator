@@ -30,8 +30,8 @@ export default function WebtoonReader({
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
   const [containerWidth, setContainerWidth] = useState(720); // default webtoon width
+  const [renderMode, setRenderMode] = useState('transparent'); // 'transparent' (กล่องใส ไม่บังภาพ) | 'lens' (โปร่งแสง) | 'patch' (กล่องเนียน)
   const [fontSizeScale, setFontSizeScale] = useState(1);
-  const [renderMode, setRenderMode] = useState('patch'); // 'patch' (ปิดทับคำเดิมเหมือนต้นฉบับ) | 'lens' (กล่องใส)
   const [hideSfx, setHideSfx] = useState(true); // Default true: ไม่แสดงเอฟเฟกต์เสียงบังหน้าตัวละคร
   const [fontFamily, setFontFamily] = useState(
     'var(--font-mitr), var(--font-prompt), sans-serif'

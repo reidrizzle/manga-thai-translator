@@ -33,8 +33,13 @@ export default function UploadZone({
     setErrorMsg('');
     const newPages = [];
 
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
+    // Sort files naturally by filename (e.g. page-1, page-2, page-10)
+    const sortedFiles = Array.from(fileList).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    );
+
+    for (let i = 0; i < sortedFiles.length; i++) {
+      const file = sortedFiles[i];
       if (!file.type.startsWith('image/')) {
         setErrorMsg('กรุณาอัปโหลดเฉพาะไฟล์รูปภาพ (JPG, PNG, WebP)');
         continue;
