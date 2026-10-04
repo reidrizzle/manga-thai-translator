@@ -24,32 +24,46 @@ export async function POST(request) {
       );
     }
 
-    // Demo Mode: Allow testing even without a Gemini API Key
-    if (isDemoMode || customApiKey === 'demo') {
-      return NextResponse.json({
-        success: true,
-        data: {
-          page_summary: 'ตัวอย่างการแปลโหมดจำลอง (Demo Localization)',
-          bubbles: [
-            {
-              id: 1,
-              type: 'speech',
-              box: { x: 14.0, y: 14.0, width: 44.0, height: 18.0 },
-              original_text: 'It felt a bit excessive, but the operation was essentially a success.',
-              thai_translation: 'ถึงจะดูเกินเบอร์ไปหน่อย แต่ปฏิบัติการครั้งนี้ถือว่าสำเร็จลุล่วงด้วยดีล่ะนะ!',
-              speaker_tone: 'โล่งอก / สบายใจ',
-            },
-            {
-              id: 2,
-              type: 'speech',
-              box: { x: 14.0, y: 72.0, width: 44.0, height: 18.0 },
-              original_text: "If there was a downside, it was that Dame Noel's guard had gone up.",
-              thai_translation: 'แต่ถ้าจะมีจุดเสียอยู่บ้าง... ก็ตรงที่คุณหญิงโนเอลเริ่มระวังตัวแจขึ้นมาเนี่ยสิ!',
-              speaker_tone: 'ครุ่นคิด / เป็นกังวล',
-            },
-          ],
+    // Resolve effective API Key: prefer custom user key, then server GEMINI_API_KEY
+    const hasCustomKey = customApiKey && customApiKey !== 'demo' && customApiKey.length >= 10;
+    const effectiveApiKey = hasCustomKey ? customApiKey : (process.env.GEMINI_API_KEY || null);
+
+    // Only return mock demo data if NO valid API key exists anywhere on server or client
+    if (!effectiveApiKey) {
+      if (isDemoMode || customApiKey === 'demo') {
+        return NextResponse.json({
+          success: true,
+          data: {
+            page_summary: 'โหมดจำลอง (ยังไม่ได้ใส่ API Key) - กรุณาใส่ Gemini API Key ในหน้าต่างตั้งค่าเพื่อแปลภาพจริง',
+            bubbles: [
+              {
+                id: 1,
+                type: 'narration',
+                box: { x: 39.0, y: 54.4, width: 44.0, height: 8.5 },
+                original_text: "A FEW DAYS AFTER THE 'AIDEN BEAM' PIERCED THE SKY.",
+                thai_translation: "ไม่กี่วันหลังจากที่ 'ลำแสงของไอเดน' พุ่งทะลวงขึ้นไปบนท้องฟ้า",
+                speaker_tone: 'บรรยาย',
+              },
+              {
+                id: 2,
+                type: 'narration',
+                box: { x: 13.0, y: 71.8, width: 45.0, height: 8.8 },
+                original_text: "EXACTLY AS AIDEN INTENDED, THE NOBLES' COMPLAINTS COMPLETELY SUBSIDED.",
+                thai_translation: 'เป็นไปตามที่ไอเดนต้องการ ข้อร้องเรียนของพวกขุนนางเงียบลงอย่างสิ้นเชิง',
+                speaker_tone: 'บรรยาย',
+              },
+            ],
+          },
+        });
+      }
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'ไม่พบ Gemini API Key กรุณาระบุในหน้าตั้งค่า (คลิกไอคอนฟันเฟืองด้านบน) หรือตั้งค่า GEMINI_API_KEY ใน Render / .env',
         },
-      });
+        { status: 400 }
+      );
     }
 
     const result = await translateMangaImage({
@@ -57,8 +71,8 @@ export async function POST(request) {
       mimeType: mimeType || 'image/jpeg',
       sourceLang: sourceLang || 'auto',
       tonePreset: tonePreset || 'manhwa_natural',
-      customApiKey: customApiKey || null,
-      modelName: modelName || 'gemini-3.8-flash', // was 'gemini-1.5-flash' — old/wrong model
+      customApiKey: effectiveApiKey,
+      modelName: modelName || 'gemini-3.5-flash',
     });
 
     return NextResponse.json({

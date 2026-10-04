@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
-    const { apiKey, modelName = 'gemini-2.0-flash' } = await request.json();
+    const { apiKey, modelName = 'gemini-3.5-flash' } = await request.json();
     const key = apiKey || process.env.GEMINI_API_KEY;
 
     if (!key) {
@@ -24,10 +24,12 @@ export async function POST(request) {
 
     const genAI = new GoogleGenerativeAI(key);
     const ALLOWED = [
-      'gemini-3.8-flash',
-      'gemini-2.5-flash',
+      'gemini-3.5-flash',
+      'gemini-3-flash-preview',
+      'gemini-3.1-flash-lite',
+      'gemini-flash-latest',
     ];
-    const preferred = ALLOWED.includes(modelName) ? modelName : 'gemini-3.8-flash';
+    const preferred = ALLOWED.includes(modelName) ? modelName : 'gemini-3.5-flash';
     const candidates = Array.from(new Set([preferred, ...ALLOWED]));
 
     let lastError = null;

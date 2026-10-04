@@ -25,7 +25,7 @@ export default function HomePage() {
   const [sourceLang, setSourceLang] = useState('auto');
   const [tonePreset, setTonePreset] = useState('manhwa_natural');
   const [apiKey, setApiKey] = useState('');
-  const [modelName, setModelName] = useState('gemini-2.5-flash');
+  const [modelName, setModelName] = useState('gemini-3.5-flash');
   const [isTranslating, setIsTranslating] = useState(false);
   const [currentTranslateIndex, setCurrentTranslateIndex] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -38,17 +38,26 @@ export default function HomePage() {
     if (typeof window !== 'undefined') {
       const savedKey = localStorage.getItem('manga_gemini_api_key');
       const savedModel = localStorage.getItem('manga_gemini_model');
-      if (savedKey) setApiKey(savedKey);
 
       const ALLOWED_MODELS = [
-        'gemini-3.8-flash',
-        'gemini-2.5-flash',
+        'gemini-3.5-flash',
+        'gemini-3-flash-preview',
+        'gemini-3.1-flash-lite',
+        'gemini-flash-latest',
       ];
       if (savedModel && ALLOWED_MODELS.includes(savedModel)) {
         setModelName(savedModel);
       } else {
-        setModelName('gemini-3.8-flash');
-        localStorage.setItem('manga_gemini_model', 'gemini-3.8-flash');
+        setModelName('gemini-3.5-flash');
+        localStorage.setItem('manga_gemini_model', 'gemini-3.5-flash');
+      }
+
+      // Purge any legacy 'demo' flag so user is never trapped in mock mode
+      if (savedKey === 'demo') {
+        localStorage.removeItem('manga_gemini_api_key');
+        setApiKey('');
+      } else if (savedKey) {
+        setApiKey(savedKey);
       }
     }
   }, []);
@@ -94,7 +103,11 @@ export default function HomePage() {
     setCurrentTranslateIndex(pageIndex);
 
     setPages((prev) =>
-      prev.map((p, idx) => (idx === pageIndex ? { ...p, status: 'translating' } : p))
+      prev.map((p, idx) =>
+        idx === pageIndex
+          ? { ...p, status: 'translating', bubbles: [], error: null }
+          : p
+      )
     );
 
     try {
@@ -107,7 +120,7 @@ export default function HomePage() {
           mimeType: currentPage.mimeType || 'image/jpeg',
           sourceLang,
           tonePreset,
-          customApiKey: apiKey || null,
+          customApiKey: apiKey && apiKey !== 'demo' ? apiKey : null,
           modelName,
           isDemoMode: apiKey === 'demo',
         }),
@@ -159,9 +172,13 @@ export default function HomePage() {
         await new Promise((r) => setTimeout(r, 2000));
       }
 
-      // Mark current page as translating
+      // Mark current page as translating and clear any old bubbles
       setPages((prev) =>
-        prev.map((p, idx) => (idx === i ? { ...p, status: 'translating' } : p))
+        prev.map((p, idx) =>
+          idx === i
+            ? { ...p, status: 'translating', bubbles: [], error: null }
+            : p
+        )
       );
 
       try {
@@ -173,7 +190,7 @@ export default function HomePage() {
             mimeType: currentPage.mimeType || 'image/jpeg',
             sourceLang,
             tonePreset,
-            customApiKey: activeKey || null,
+            customApiKey: activeKey && activeKey !== 'demo' ? activeKey : null,
             modelName,
             isDemoMode: activeKey === 'demo',
           }),

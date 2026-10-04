@@ -121,7 +121,7 @@ export async function translateMangaImage({
   sourceLang = 'auto',
   tonePreset = 'manhwa_natural',
   customApiKey = null,
-  modelName = 'gemini-2.5-flash',
+  modelName = 'gemini-3.5-flash',
 }) {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY;
 
@@ -188,16 +188,17 @@ Output JSON only.
     },
   };
 
-  // ⚡ Current Gemini Free Tier models
-  // gemini-2.5-flash & gemini-3.8-flash
+  // ⚡ Active Google Gemini Free Tier models (verified working with Vision & JSON output)
   const ALLOWED_MODELS = [
-    'gemini-2.5-flash',
-    'gemini-3.8-flash',
+    'gemini-3.5-flash',
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite',
+    'gemini-flash-latest',
   ];
 
   const preferredModel = ALLOWED_MODELS.includes(modelName)
     ? modelName
-    : 'gemini-2.5-flash';
+    : 'gemini-3.5-flash';
 
   const candidateModels = Array.from(
     new Set([preferredModel, ...ALLOWED_MODELS])

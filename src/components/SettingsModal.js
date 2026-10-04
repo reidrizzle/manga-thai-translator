@@ -26,7 +26,7 @@ export default function SettingsModal({
   onStartDemoTranslate,
 }) {
   const [localKey, setLocalKey] = useState(apiKey || '');
-  const [localModel, setLocalModel] = useState(modelName || 'gemini-1.5-flash');
+  const [localModel, setLocalModel] = useState(modelName || 'gemini-3.5-flash');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [testStatus, setTestStatus] = useState({ state: 'idle', message: '' });
 
@@ -34,7 +34,7 @@ export default function SettingsModal({
   useEffect(() => {
     if (isOpen) {
       setLocalKey(apiKey || '');
-      setLocalModel(modelName || 'gemini-1.5-flash');
+      setLocalModel(modelName || 'gemini-3.5-flash');
       setTestStatus({ state: 'idle', message: '' });
     }
   }, [isOpen, apiKey, modelName]);
@@ -104,16 +104,12 @@ export default function SettingsModal({
   };
 
   const handleUseDemo = () => {
-    setApiKey('demo');
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('manga_gemini_api_key', 'demo');
-    }
     setSavedSuccess(true);
     setTimeout(() => {
       setSavedSuccess(false);
       onClose();
       if (onStartDemoTranslate) onStartDemoTranslate();
-    }, 400);
+    }, 300);
   };
 
   const handleClear = () => {
@@ -281,11 +277,17 @@ export default function SettingsModal({
               onChange={(e) => setLocalModel(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
             >
-              <option value="gemini-3.8-flash">
-                Gemini 3.8 Flash (แนะนำ - โมเดลใหม่ล่าสุด เร็ว OCR ดีเยี่ยม)
+              <option value="gemini-3.5-flash">
+                Gemini 3.5 Flash (แนะนำ - เสถียรที่สุด แปลไทยธรรมชาติ แม่นยำ)
               </option>
-              <option value="gemini-2.5-flash">
-                Gemini 2.5 Flash (สำรอง - เสถียร โควตาฟรีสูง)
+              <option value="gemini-3-flash-preview">
+                Gemini 3 Flash Preview (รุ่นใหม่ ความเร็วสูง)
+              </option>
+              <option value="gemini-3.1-flash-lite">
+                Gemini 3.1 Flash Lite (เบาและประหยัด)
+              </option>
+              <option value="gemini-flash-latest">
+                Gemini Flash Latest (รุ่นล่าสุดของ Gemini Flash)
               </option>
             </select>
           </div>

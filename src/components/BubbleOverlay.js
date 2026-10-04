@@ -106,14 +106,17 @@ export default function BubbleOverlay({
     ? (isDark ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.92)')
     : (isDark ? '#0f172a' : '#ffffff');
 
-  const textFill = isDark ? '#ffffff' : '#0a0a0a';
+  const textFill = isDark ? '#ffffff' : '#000000';
 
   const textShadow = isDark
     ? '0 1px 2px rgba(0,0,0,0.8)'
     : (isLens ? '0 0 2px #fff' : 'none');
 
   // Pill / oval shape for speech bubbles to blend into native bubble curves; rect for narration
-  const borderRadius = isRect ? '3px' : '9999px';
+  const borderRadius = isRect ? '2px' : '9999px';
+  const borderStyle = isLens
+    ? (isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)')
+    : (isRect ? (isDark ? '1.5px solid #334155' : '1.5px solid #09090b') : 'none');
 
   // === FONT SIZING — authentic, bold, readable comic book lettering ===
   const hint = bubble.font_size_hint || 'medium';
@@ -121,15 +124,15 @@ export default function BubbleOverlay({
   const text = bubble.thai_translation || '';
   const charCount = text.replace(/\n/g, '').length || 1;
 
-  let baseSize = 17; // standard comic dialog size
-  if (hint === 'large') baseSize = 22;
-  else if (hint === 'small') baseSize = 14;
-  else if (bubble.type === 'narration' || bubble.type === 'system') baseSize = 15.5;
+  let baseSize = 18; // standard comic dialog size
+  if (hint === 'large') baseSize = 23;
+  else if (hint === 'small') baseSize = 15;
+  else if (bubble.type === 'narration' || bubble.type === 'system') baseSize = 16.5;
 
   if (charCount > 70) baseSize -= 2;
-  else if (charCount < 12 && hint !== 'small') baseSize += 2;
+  else if (charCount < 14 && hint !== 'small') baseSize += 2;
 
-  const fontSize = Math.round(Math.max(14, Math.min(26, baseSize)) * userScale);
+  const fontSize = Math.round(Math.max(15, Math.min(28, baseSize)) * userScale);
 
   const fontFam =
     bubbleStyle.fontFamily ||
@@ -137,7 +140,7 @@ export default function BubbleOverlay({
 
   // Bold comic dialogue lettering
   const fontWeight = 700;
-  const lineHeight = 1.3;
+  const lineHeight = 1.35;
 
   const liveX = Math.max(0, Math.min(95, box.x + dragDelta.x));
   const liveY = Math.max(0, Math.min(96, box.y + dragDelta.y));
@@ -154,9 +157,10 @@ export default function BubbleOverlay({
         height:     'auto',
         zIndex:     isHovered || isEditing ? 35 : 20,
         background: bgFill,
+        border:     borderStyle,
         borderRadius,
         boxSizing:  'border-box',
-        padding:    isRect ? '4px 6px' : '4px 8px',
+        padding:    isRect ? '4px 6px' : '3px 8px',
         outline:    isHovered ? '1.5px dashed rgba(99,102,241,0.7)' : 'none',
         outlineOffset: '2px',
         cursor:     isDragging.current ? 'grabbing' : 'move',
