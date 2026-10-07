@@ -1,6 +1,6 @@
 {
   "name": "manga-thai-translator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Web application for translating Manhwa and Manga into natural Thai with interactive in-browser Reader",
   "scripts": {
